@@ -11,8 +11,9 @@ from zipline.lib.adjustment import (
     Datetime641DArrayOverwrite,
     Datetime64Overwrite,
     Float641DArrayOverwrite,
+    Float64Multiply,
     Float64Overwrite,
-    Float64Multiply)
+)
 
 from zipline.pipeline.common import (
     EVENT_DATE_FIELD_NAME,

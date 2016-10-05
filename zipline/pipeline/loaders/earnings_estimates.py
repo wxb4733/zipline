@@ -1,11 +1,10 @@
-from itertools import chain
 from abc import abstractmethod, abstractproperty
 from collections import defaultdict
 
 import numpy as np
 import pandas as pd
 from six import viewvalues
-from toolz import groupby, merge
+from toolz import groupby
 
 from zipline.lib.adjusted_array import AdjustedArray
 from zipline.lib.adjustment import (

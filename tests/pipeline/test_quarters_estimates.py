@@ -31,10 +31,10 @@ from zipline.pipeline.loaders.earnings_estimates import (
     split_normalized_quarters,
 )
 from zipline.testing.fixtures import (
-    WithAssetFinder,
+    WithAdjustmentReader,
     WithTradingSessions,
     ZiplineTestCase,
-    WithAdjustmentReader)
+)
 from zipline.testing.predicates import assert_equal, assert_raises_regex
 from zipline.utils.numpy_utils import datetime64ns_dtype
 from zipline.utils.numpy_utils import float64_dtype
@@ -1133,7 +1133,6 @@ class PreviousWithSplitAdjustedWindows(WithSplitAdjustedWindows,
             split_adjustments=cls.adjustment_reader,
             split_adjusted_column_names=['estimate']
         )
-
 
     @classmethod
     def make_expected_timelines(cls):

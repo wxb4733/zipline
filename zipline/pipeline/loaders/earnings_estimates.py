@@ -323,13 +323,14 @@ class EarningsEstimatesLoader(PipelineLoader):
 
         quarter_shifts.groupby(level=SID_FIELD_NAME).apply(collect_overwrites)
 
-        # Apply the remaining split adjustments.
-        for column_name in self._split_adjusted_column_names:
-            for sid in col_to_split_adjustments[column_name]:
-                for ts in col_to_split_adjustments[column_name][sid]:
-                    col_to_all_adjustments[column_name][ts].extend(
-                        col_to_split_adjustments[column_name][sid][ts]
-                    )
+        if self._split_adjustments:
+            # Apply the remaining split adjustments.
+            for column_name in self._split_adjusted_column_names:
+                for sid in col_to_split_adjustments[column_name]:
+                    for ts in col_to_split_adjustments[column_name][sid]:
+                        col_to_all_adjustments[column_name][ts].extend(
+                            col_to_split_adjustments[column_name][sid][ts]
+                        )
         return col_to_all_adjustments
 
     def collect_split_adjustments(self,
@@ -606,7 +607,6 @@ class NextEarningsEstimatesLoader(EarningsEstimatesLoader):
                                       col_to_split_adjustments):
         adjustments = [self.array_overwrites_dict[column.dtype](
             0,
-            # overwrite thru last qtr
             next_qtr_start_idx - 1,
             sid_idx,
             sid_idx,
@@ -620,19 +620,21 @@ class NextEarningsEstimatesLoader(EarningsEstimatesLoader):
                 in self._split_adjusted_column_names:
             for ts in col_to_split_adjustments[column_name][sid]:
                 if ts < next_qtr_start_idx:
-                    adjustments.extend(
-                        col_to_split_adjustments[column_name][sid][ts]
-                    )
-            if next_qtr_start_idx in col_to_split_adjustments[
-                column_name
-            ][sid]:
-                # We don't want to add this same adjustment multiple
-                # times, so remove it. For adjustments that are <
-                # timestamp, we will want to apply them on their
-                # timestamp as well, so we need to keep those.
-                adjustments.extend(
-                    col_to_split_adjustments[column_name][sid].pop(ts)
-                )
+                    # Create new adjustments here so that we can re-apply all
+                    # applicable adjustments to ONLY the dates being
+                    # overwritten.
+                    limited_adjustments = [
+                        Float64Multiply(
+                            0,
+                            next_qtr_start_idx - 1,
+                            sid,
+                            sid,
+                            adjustment.value
+                        )
+                        for adjustment
+                        in col_to_split_adjustments[column_name][sid][ts]
+                    ]
+                    adjustments.extend(limited_adjustments)
         return adjustments
 
     def get_shifted_qtrs(self, zero_qtrs, num_announcements):
@@ -681,23 +683,17 @@ class PreviousEarningsEstimatesLoader(EarningsEstimatesLoader):
                                       sid,
                                       sid_idx,
                                       col_to_split_adjustments):
-        adjustments = [self.overwrite_with_null(
+        # We don't need to apply split adjustments in any particular order
+        # for 'previous' because we don't overwrite the data in
+        # `next_qtr_start_idx` and the data before `next_qtr_start_idx` is
+        # overwritten with NaN. So, split adjustments for 'previous' can be
+        # applied as they happen.
+        return [self.overwrite_with_null(
             column,
             dates,
             next_qtr_start_idx,
             sid_idx,
         )]
-        if self._split_adjustments and \
-                column_name in self._split_adjusted_column_names:
-            if next_qtr_start_idx in col_to_split_adjustments[
-                column_name
-            ][sid]:
-                adjustments.extend(
-                    col_to_split_adjustments[column_name][sid].pop(
-                        next_qtr_start_idx
-                    )
-                )
-        return adjustments
 
     def get_shifted_qtrs(self, zero_qtrs, num_announcements):
         return zero_qtrs - (num_announcements - 1)

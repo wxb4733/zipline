@@ -83,7 +83,9 @@ class BlazeEstimatesLoader(PipelineLoader):
                  data_query_time=None,
                  data_query_tz=None,
                  checkpoints=None,
-                 split_adjustments=None):
+                 split_adjustments=None,
+                 split_adjusted_column_names=None,
+                 split_adjusted_asof=None):
 
         dshape = expr.dshape
         if not istabular(dshape):
@@ -105,6 +107,8 @@ class BlazeEstimatesLoader(PipelineLoader):
         self._data_query_tz = data_query_tz
         self._checkpoints = checkpoints
         self._split_adjustments = split_adjustments
+        self._split_adjusted_column_names = split_adjusted_column_names
+        self._split_adjusted_asof = split_adjusted_asof
 
     def load_adjusted_array(self, columns, dates, assets, mask):
         # Only load requested columns.
@@ -122,7 +126,10 @@ class BlazeEstimatesLoader(PipelineLoader):
 
         return self.loader(
             raw,
-            {column.name: self._columns[column.name] for column in columns}
+            {column.name: self._columns[column.name] for column in columns},
+            self._split_adjustments,
+            self._split_adjusted_column_names,
+            self._split_adjusted_asof,
         ).load_adjusted_array(
             columns,
             dates,

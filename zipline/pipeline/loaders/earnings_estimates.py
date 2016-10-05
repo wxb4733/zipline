@@ -127,7 +127,8 @@ class EarningsEstimatesLoader(PipelineLoader):
                  estimates,
                  name_map,
                  split_adjustments=None,
-                 split_adjusted_column_names=None):
+                 split_adjusted_column_names=None,
+                 split_adjusted_asof=None):
         validate_column_specs(
             estimates,
             name_map
@@ -155,6 +156,7 @@ class EarningsEstimatesLoader(PipelineLoader):
         self.name_map = name_map
         self._split_adjustments = split_adjustments
         self._split_adjusted_column_names = split_adjusted_column_names
+        self._split_adjusted_asof = split_adjusted_asof
 
     @abstractmethod
     def get_zeroth_quarter_idx(self, num_announcements, last, dates):
@@ -342,23 +344,53 @@ class EarningsEstimatesLoader(PipelineLoader):
             for sid in assets:
                 col_to_split_adjustments[column_name][sid] = defaultdict(list)
                 split_adjustments_for_sid =\
-                    self._split_adjustments.get_adjustments_for_sid('splits',
-                                                                    sid)
-                date_indexes = dates.searchsorted(
-                    np.array([adj[0] for adj in split_adjustments_for_sid])
-                )
-                for i, adjustment in enumerate(split_adjustments_for_sid):
+                    self._split_adjustments.get_adjustments_for_sid(
+                        'splits', sid
+                    )
+                # Sort adjustments by timestamp
+                sorted(split_adjustments_for_sid, key=lambda adj: adj[0])
+                timestamps = np.array([adj[0]
+                                       for adj in split_adjustments_for_sid])
+                adjustments = np.array([adj[1]
+                                        for adj in split_adjustments_for_sid])
+                date_indexes = dates.searchsorted(timestamps)
+                sequential_adjustments_start_idx = 0
+                if self._split_adjusted_asof:
+                    # Collect all adjustments in bulk up until the date on
+                    # which they were applied.
+                    stop_index = dates.searchsorted(self._split_adjusted_asof)
+                    sequential_adjustments_start_idx = np.where(
+                        date_indexes <= stop_index
+                    )[0].max() + 1
+                    for adjustment in adjustments[
+                                      :sequential_adjustments_start_idx]:
+                        col_to_split_adjustments[
+                            column_name
+                        ][sid][0].append(
+                            Float64Multiply(
+                                0,
+                                len(dates) - 1,
+                                sid,
+                                sid,
+                                1 / adjustment  # reverse the split ratio
+                            )
+                        )
+                # Add on any remaining adjustments.
+                for date_index, adjustment in zip(
+                        date_indexes[sequential_adjustments_start_idx:],
+                        adjustments[sequential_adjustments_start_idx:]
+                ):
                     # Create all split adjustments based on how they occur in
                     # time.
                     col_to_split_adjustments[
                         column_name
-                    ][sid][date_indexes[i]].append(
+                    ][sid][date_index].append(
                         Float64Multiply(
                             0,
                             len(dates) - 1,
                             sid,
                             sid,
-                            1 / adjustment[1]  # reverse the split ratio
+                            1 / adjustment  # reverse the split ratio
                         )
                     )
 

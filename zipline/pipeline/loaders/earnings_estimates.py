@@ -362,8 +362,8 @@ class EarningsEstimatesLoader(PipelineLoader):
                     sequential_adjustments_start_idx = np.where(
                         date_indexes <= stop_index
                     )[0].max() + 1
-                    for adjustment in adjustments[
-                                      :sequential_adjustments_start_idx]:
+                    for adjustment \
+                            in adjustments[:sequential_adjustments_start_idx]:
                         col_to_split_adjustments[
                             column_name
                         ][sid][0].append(

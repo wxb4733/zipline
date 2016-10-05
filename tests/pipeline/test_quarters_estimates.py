@@ -1441,7 +1441,8 @@ class NextWithBulkSplitAdjustedWindows(WithSplitAdjustedWindows,
 
         twoq_next = pd.concat(
             [cls.create_expected_df(
-                [(0, 200*1/2*1/3*1/4*1/5, pd.Timestamp(cls.window_test_start_date)),
+                [(0, 200*1/2*1/3*1/4*1/5,
+                  pd.Timestamp(cls.window_test_start_date)),
                  (1, np.NaN, pd.Timestamp(cls.window_test_start_date)),
                  (2, 220*1/7*1/8*1/9*1/10,
                   pd.Timestamp(cls.window_test_start_date))],

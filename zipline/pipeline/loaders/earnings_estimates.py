@@ -92,6 +92,23 @@ def validate_column_specs(events, columns):
         )
 
 
+def validate_split_adjusted_columns(name_map, split_adjusted_column_names):
+    to_be_split = set(split_adjusted_column_names)
+    available = name_map.keys()
+    extra = to_be_split - available
+    if extra:
+        raise ValueError(
+            "EarningsEstimatesLoader got the following extra columns to be "
+            "split-adjusted: {extra}.\n"
+            "Got Columns: {to_be_split}\n"
+            "Available Columns: {available}".format(
+                extra=sorted(extra),
+                to_be_split=sorted(to_be_split),
+                available=sorted(available),
+            )
+        )
+
+
 class EarningsEstimatesLoader(PipelineLoader):
     """
     An abstract pipeline loader for estimates data that can load data a
@@ -133,6 +150,12 @@ class EarningsEstimatesLoader(PipelineLoader):
             estimates,
             name_map
         )
+
+        if split_adjusted_column_names:
+            validate_split_adjusted_columns(
+                name_map,
+                split_adjusted_column_names
+            )
 
         self.estimates = estimates[
             estimates[EVENT_DATE_FIELD_NAME].notnull() &

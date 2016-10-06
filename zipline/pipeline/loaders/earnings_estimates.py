@@ -126,7 +126,7 @@ class EarningsEstimatesLoader(PipelineLoader):
     def __init__(self,
                  estimates,
                  name_map,
-                 split_adjustments=None,
+                 split_adjustments_loader=None,
                  split_adjusted_column_names=None,
                  split_adjusted_asof=None):
         validate_column_specs(
@@ -154,7 +154,7 @@ class EarningsEstimatesLoader(PipelineLoader):
         }
 
         self.name_map = name_map
-        self._split_adjustments = split_adjustments
+        self._split_adjustments = split_adjustments_loader
         self._split_adjusted_column_names = split_adjusted_column_names
         self._split_adjusted_asof = split_adjusted_asof
 

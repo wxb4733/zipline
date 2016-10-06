@@ -83,7 +83,7 @@ class BlazeEstimatesLoader(PipelineLoader):
                  data_query_time=None,
                  data_query_tz=None,
                  checkpoints=None,
-                 split_adjustments=None,
+                 split_adjustments_loader=None,
                  split_adjusted_column_names=None,
                  split_adjusted_asof=None):
 
@@ -106,7 +106,7 @@ class BlazeEstimatesLoader(PipelineLoader):
         self._data_query_time = data_query_time
         self._data_query_tz = data_query_tz
         self._checkpoints = checkpoints
-        self._split_adjustments = split_adjustments
+        self._split_adjustments = split_adjustments_loader
         self._split_adjusted_column_names = split_adjusted_column_names
         self._split_adjusted_asof = split_adjusted_asof
 

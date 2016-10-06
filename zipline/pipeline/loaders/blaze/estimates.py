@@ -114,10 +114,13 @@ class BlazeEstimatesLoader(PipelineLoader):
         # Only load requested columns.
         requested_column_names = [self._columns[column.name]
                                   for column in columns]
-        requested_spilt_adjusted_columns = [column_name for column_name in
-                                            self._split_adjusted_column_names
-                                            if column_name
-                                            in requested_column_names]
+        requested_spilt_adjusted_columns = None
+        if self._split_adjusted_column_names:
+            requested_spilt_adjusted_columns = [
+                column_name
+                for column_name in self._split_adjusted_column_names
+                if column_name in requested_column_names
+            ]
         raw = load_raw_data(
             assets,
             dates,

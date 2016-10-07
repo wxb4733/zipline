@@ -938,6 +938,7 @@ class WithEstimateWindows(WithEstimates):
                     trading_days[:today_idx + 1]
                 ).values
                 timeline_start_idx = (len(today_timeline) - window_len)
+                # import pdb; pdb.set_trace()
                 assert_almost_equal(estimate,
                                     today_timeline[timeline_start_idx:])
 
@@ -1161,15 +1162,15 @@ class PreviousWithSplitAdjustedWindows(WithSplitAdjustedWindows,
                 pd.Timestamp('2015-01-12')
             ),
             cls.create_expected_df(
-                [(0, 101, pd.Timestamp('2015-01-10')),
-                 (1, 111, pd.Timestamp('2015-01-12')),
-                 (2, 121, pd.Timestamp('2015-01-10'))],
+                [(0, 101*1/5, pd.Timestamp('2015-01-10')),
+                 (1, 111*10/3, pd.Timestamp('2015-01-12')),
+                 (2, 121*1/10, pd.Timestamp('2015-01-10'))],
                 pd.Timestamp('2015-01-13')
             ),
             cls.create_expected_df(
-                [(0, 101, pd.Timestamp('2015-01-10')),
-                 (1, 111, pd.Timestamp('2015-01-12')),
-                 (2, 121, pd.Timestamp('2015-01-10'))],
+                [(0, 101*1/5, pd.Timestamp('2015-01-10')),
+                 (1, 111*10/3, pd.Timestamp('2015-01-12')),
+                 (2, 121*1/10, pd.Timestamp('2015-01-10'))],
                 pd.Timestamp('2015-01-14')
             ),
             cls.create_expected_df(
@@ -1186,8 +1187,8 @@ class PreviousWithSplitAdjustedWindows(WithSplitAdjustedWindows,
             ),
             cls.create_expected_df(
                 [(0, 201*6, pd.Timestamp('2015-01-17')),
-                 (1, 311*.5*.6, pd.Timestamp('2015-01-15')),
-                 (2, 221*6, pd.Timestamp('2015-01-17'))],
+                 (1, 311*.4*.5*.6, pd.Timestamp('2015-01-15')),
+                 (2, 221*11, pd.Timestamp('2015-01-17'))],
                 pd.Timestamp('2015-01-20')
             ),
         ])
@@ -1202,7 +1203,7 @@ class PreviousWithSplitAdjustedWindows(WithSplitAdjustedWindows,
             [cls.create_expected_df(
                 [(0, 101*6, pd.Timestamp('2015-01-20')),
                  (1, np.NaN, cls.window_test_start_date),
-                 (2, 121*6, pd.Timestamp('2015-01-20'))],
+                 (2, 121*11, pd.Timestamp('2015-01-20'))],
                 pd.Timestamp('2015-01-20')
             )]
         )

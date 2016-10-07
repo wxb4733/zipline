@@ -182,7 +182,7 @@ class EarningsEstimatesLoader(PipelineLoader):
         self._split_adjusted_asof = split_adjusted_asof
 
     @abstractmethod
-    def get_zeroth_quarter_idx(self, num_announcements, last, dates):
+    def get_zeroth_quarter_idx(self, stacked_last_per_qtr):
         raise NotImplementedError('get_zeroth_quarter_idx')
 
     @abstractmethod
@@ -198,6 +198,7 @@ class EarningsEstimatesLoader(PipelineLoader):
                                       requested_quarter,
                                       sid,
                                       sid_idx,
+                                      split_adjusted_asof_idx,
                                       col_to_split_adjustments):
         raise NotImplementedError('create_overwrite_for_estimate')
 
@@ -300,6 +301,9 @@ class EarningsEstimatesLoader(PipelineLoader):
         adjusted_array : AdjustedArray
             The array of data and overwrites for the given column.
         """
+        split_adjusted_asof_idx = dates.searchsorted(
+                    self._split_adjusted_asof
+                )
         zero_qtr_data.sort_index(inplace=True)
         # Here we want to get the LAST record from each group of records
         # corresponding to a single quarter. This is to ensure that we select
@@ -314,7 +318,9 @@ class EarningsEstimatesLoader(PipelineLoader):
         if self._split_adjustments:
             self.collect_split_adjustments(assets,
                                            dates,
-                                           col_to_split_adjustments)
+                                           col_to_split_adjustments,
+                                           split_adjusted_asof_idx,
+                                           requested_qtr_data)
         for column in columns:
             column_name = self.name_map[column.name]
             col_to_all_adjustments[column_name] = defaultdict(list)
@@ -344,10 +350,10 @@ class EarningsEstimatesLoader(PipelineLoader):
                         sid,
                         sid_to_idx[sid],
                         columns,
+                        split_adjusted_asof_idx
                     )
 
         quarter_shifts.groupby(level=SID_FIELD_NAME).apply(collect_overwrites)
-
         if self._split_adjustments:
             # Apply the remaining split adjustments.
             for column_name in self._split_adjusted_column_names:
@@ -361,7 +367,9 @@ class EarningsEstimatesLoader(PipelineLoader):
     def collect_split_adjustments(self,
                                   assets,
                                   dates,
-                                  col_to_split_adjustments):
+                                  col_to_split_adjustments,
+                                  split_adjusted_asof_date_idx,
+                                  requested_qtr_data):
         for column_name in self._split_adjusted_column_names:
             col_to_split_adjustments[column_name] = defaultdict(dict)
             for sid in assets:
@@ -377,43 +385,94 @@ class EarningsEstimatesLoader(PipelineLoader):
                 adjustments = np.array([adj[1]
                                         for adj in split_adjustments_for_sid])
                 date_indexes = dates.searchsorted(timestamps)
-                sequential_adjustments_start_idx = 0
-                if self._split_adjusted_asof:
-                    # Collect all adjustments in bulk up until the date on
-                    # which they were applied.
-                    stop_index = dates.searchsorted(self._split_adjusted_asof)
-                    sequential_adjustments_start_idx = np.where(
-                        date_indexes <= stop_index
-                    )[0].max() + 1
-                    for adjustment \
-                            in adjustments[:sequential_adjustments_start_idx]:
-                        col_to_split_adjustments[
-                            column_name
-                        ][sid][0].append(
-                            Float64Multiply(
-                                0,
-                                len(dates) - 1,
-                                sid,
-                                sid,
-                                1 / adjustment  # reverse the split ratio
-                            )
-                        )
-                # Add on any remaining adjustments.
-                for date_index, adjustment in zip(
-                        date_indexes[sequential_adjustments_start_idx:],
-                        adjustments[sequential_adjustments_start_idx:]
+                last_adjustment_split_asof_idx = np.where(
+                    date_indexes <= split_adjusted_asof_date_idx
+                )[0].max()
+                # We need to undo all adjustments that happen before the
+                # split_asof_date here by reversing the split ratio.
+                adjustments_to_undo = [Float64Multiply(
+                    0,
+                    split_adjusted_asof_date_idx,
+                    sid,
+                    sid,
+                    1/future_adjustment
+                ) for future_adjustment in adjustments[
+                    # + 1 here because we want to also un-apply any
+                    # adjustment on the split_adjusted_asof_idx.
+                    :last_adjustment_split_asof_idx + 1
+                ]]
+                col_to_split_adjustments[
+                        column_name
+                    ][sid][0].extend(adjustments_to_undo)
+
+                for i, date_index in enumerate(
+                        date_indexes[:last_adjustment_split_asof_idx + 1]
                 ):
-                    # Create all split adjustments based on how they occur in
-                    # time.
                     col_to_split_adjustments[
                         column_name
                     ][sid][date_index].append(
                         Float64Multiply(
                             0,
-                            len(dates) - 1,
+                            split_adjusted_asof_date_idx,
                             sid,
                             sid,
-                            1 / adjustment  # reverse the split ratio
+                            adjustments[i]
+                        )
+                    )
+
+                sid_estimates = self.estimates[
+                    self.estimates[SID_FIELD_NAME] == sid
+                ]
+                # For all adjustments that happen after the split_asof_date,
+                # we want to apply adjustments as normal.
+                for timestamp, date_index, adjustment in zip(
+                        timestamps[last_adjustment_split_asof_idx+1:],
+                        date_indexes[last_adjustment_split_asof_idx + 1:],
+                        adjustments[last_adjustment_split_asof_idx + 1:]
+                ):
+                    # Determine which years/quarters we're in from this split
+                    # until the end of the data.
+                    requested_quarters = requested_qtr_data[
+                        FISCAL_QUARTER_FIELD_NAME
+                    ][sid][date_index:]
+                    requested_years = requested_qtr_data[
+                        FISCAL_YEAR_FIELD_NAME
+                    ][sid][date_index:]
+                    # Determine the dates of all the information we have for
+                    # these years/quarters.
+                    information_ts = sid_estimates[
+                        sid_estimates[
+                            FISCAL_QUARTER_FIELD_NAME
+                        ].isin(requested_quarters) &
+                        sid_estimates[
+                            FISCAL_YEAR_FIELD_NAME
+                        ].isin(requested_years)
+                    ][TS_FIELD_NAME].reset_index(drop=True)
+                    # Look for the timestamp of the split in the sparse
+                    # information date index.
+                    next_info_idx = information_ts.searchsorted(timestamp,
+                                                                side='right')
+                    # There's no new information after this split. Apply
+                    # the split until the end of the date index.
+                    if next_info_idx == len(information_ts):
+                        end_idx = len(dates) - 1
+                    # There's new information about a requested year/quarter
+                    # after this split. Apply the split until the date index
+                    # of the new information.
+                    else:
+                        end_idx = dates.searchsorted(information_ts[
+                                                         next_info_idx
+                                                     ].values) - 1
+
+                    col_to_split_adjustments[
+                        column_name
+                    ][sid][date_index].append(
+                        Float64Multiply(
+                            0,
+                            end_idx,
+                            sid,
+                            sid,
+                            adjustment
                         )
                     )
 
@@ -426,7 +485,8 @@ class EarningsEstimatesLoader(PipelineLoader):
                                      requested_qtr_data,
                                      sid,
                                      sid_idx,
-                                     columns):
+                                     columns,
+                                     split_adjusted_asof_idx):
         """
         Add entries to the dictionary of columns to adjustments for the given
         sid and the given quarter.
@@ -476,6 +536,7 @@ class EarningsEstimatesLoader(PipelineLoader):
                         requested_quarter,
                         sid,
                         sid_idx,
+                        split_adjusted_asof_idx,
                         col_to_split_adjustments
                     ))
             # There are no estimates for the quarter. Overwrite all
@@ -659,8 +720,9 @@ class NextEarningsEstimatesLoader(EarningsEstimatesLoader):
                                       requested_quarter,
                                       sid,
                                       sid_idx,
+                                      split_adjusted_asof_idx,
                                       col_to_split_adjustments):
-        adjustments = [self.array_overwrites_dict[column.dtype](
+        overwrites = [self.array_overwrites_dict[column.dtype](
             0,
             next_qtr_start_idx - 1,
             sid_idx,
@@ -674,11 +736,13 @@ class NextEarningsEstimatesLoader(EarningsEstimatesLoader):
         if self._split_adjustments and column_name \
                 in self._split_adjusted_column_names:
             for ts in col_to_split_adjustments[column_name][sid]:
+                # We need to cumulatively re-apply adjustments to data that
+                # we're overwriting.
                 if ts < next_qtr_start_idx:
                     # Create new adjustments here so that we can re-apply all
                     # applicable adjustments to ONLY the dates being
                     # overwritten.
-                    limited_adjustments = [
+                    overwrites.extend([
                         Float64Multiply(
                             0,
                             next_qtr_start_idx - 1,
@@ -688,9 +752,9 @@ class NextEarningsEstimatesLoader(EarningsEstimatesLoader):
                         )
                         for adjustment
                         in col_to_split_adjustments[column_name][sid][ts]
-                    ]
-                    adjustments.extend(limited_adjustments)
-        return adjustments
+                    ])
+
+        return overwrites
 
     def get_shifted_qtrs(self, zero_qtrs, num_announcements):
         return zero_qtrs + (num_announcements - 1)
@@ -737,12 +801,8 @@ class PreviousEarningsEstimatesLoader(EarningsEstimatesLoader):
                                       requested_quarter,
                                       sid,
                                       sid_idx,
+                                      split_adjusted_asof_idx,
                                       col_to_split_adjustments):
-        # We don't need to apply split adjustments in any particular order
-        # for 'previous' because we don't overwrite the data in
-        # `next_qtr_start_idx` and the data before `next_qtr_start_idx` is
-        # overwritten with NaN. So, split adjustments for 'previous' can be
-        # applied as they happen.
         return [self.overwrite_with_null(
             column,
             dates,

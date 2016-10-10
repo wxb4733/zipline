@@ -817,7 +817,7 @@ class WithEstimateWindows(WithEstimates):
     @classmethod
     def make_events(cls):
         sid_0_timeline = pd.DataFrame({
-            TS_FIELD_NAME: [pd.Timestamp('2015-01-05'),
+            TS_FIELD_NAME: [cls.window_test_start_date,
                             pd.Timestamp('2015-01-20'),
                             pd.Timestamp('2015-01-12'),  # We want a case
                             # where we get info for a later quarter before
@@ -852,10 +852,10 @@ class WithEstimateWindows(WithEstimates):
 
         # Extra sid to make sure we have correct overwrites when sid quarter
         # boundaries collide.
-        sid_20_timeline = pd.DataFrame({
-            TS_FIELD_NAME: [pd.Timestamp('2015-01-05'),
+        sid_3_timeline = pd.DataFrame({
+            TS_FIELD_NAME: [cls.window_test_start_date,
                             pd.Timestamp('2015-01-07'),
-                            pd.Timestamp('2015-01-05'),
+                            cls.window_test_start_date,
                             pd.Timestamp('2015-01-17')],
             EVENT_DATE_FIELD_NAME:
                 [pd.Timestamp('2015-01-20'),
@@ -1047,67 +1047,87 @@ class NextEstimateWindows(WithEstimateWindows, ZiplineTestCase):
         oneq_next = pd.concat([
             cls.create_expected_df(
                 [(0, 100, cls.window_test_start_date),
-                 (0, 101, pd.Timestamp('2015-01-07')),
-                 (10, 110, pd.Timestamp('2015-01-09')),
-                 (20, 120, cls.window_test_start_date),
-                 (20, 121, pd.Timestamp('2015-01-07'))],
+                 (1, 110, pd.Timestamp('2015-01-09')),
+                 (2, 120, cls.window_test_start_date),
+                 (2, 121, pd.Timestamp('2015-01-07'))],
                 pd.Timestamp('2015-01-09')
             ),
+            pd.concat([
+                cls.create_expected_df(
+                    [(0, 100, cls.window_test_start_date),
+                     (1, 110, pd.Timestamp('2015-01-09')),
+                     (1, 111, pd.Timestamp('2015-01-12')),
+                     (2, 120, cls.window_test_start_date),
+                     (2, 121, pd.Timestamp('2015-01-07'))],
+                    end_date
+                ) for end_date in pd.date_range('2015-01-12', '2015-01-19')
+            ]),
             cls.create_expected_df(
-                [(0, 200, pd.Timestamp('2015-01-09')),
-                 (1, 110, pd.Timestamp('2015-01-09')),
-                 (1, 111, pd.Timestamp('2015-01-12')),
-                 (2, 220, cls.window_test_start_date)],
-                pd.Timestamp('2015-01-12')
-            ),
-            cls.create_expected_df(
-                [(0, 200, pd.Timestamp('2015-01-09')),
-                 (1, 310, pd.Timestamp('2015-01-09')),
-                 (2, 220, cls.window_test_start_date)],
-                pd.Timestamp('2015-01-13')
-            ),
-            cls.create_expected_df(
-                [(0, 200, pd.Timestamp('2015-01-09')),
-                 (1, 310, pd.Timestamp('2015-01-09')),
-                 (2, 220, cls.window_test_start_date)],
-                pd.Timestamp('2015-01-14')
-            ),
-            cls.create_expected_df(
-                [(0, 200, pd.Timestamp('2015-01-09')),
-                 (1, 310, pd.Timestamp('2015-01-09')),
-                 (1, 311, pd.Timestamp('2015-01-15')),
-                 (2, 220, cls.window_test_start_date)],
-                pd.Timestamp('2015-01-15')
-            ),
-            cls.create_expected_df(
-                [(0, 200, pd.Timestamp('2015-01-09')),
-                 (1, np.NaN, cls.window_test_start_date),
-                 (2, 220, cls.window_test_start_date)],
-                pd.Timestamp('2015-01-16')
-            ),
-            cls.create_expected_df(
-                [(0, 200, pd.Timestamp('2015-01-09')),
-                 (0, 201, pd.Timestamp('2015-01-17')),
-                 (10, np.NaN, cls.window_test_start_date),
-                 (20, 220, cls.window_test_start_date),
-                 (20, 221, pd.Timestamp('2015-01-17'))],
-                pd.Timestamp('2015-01-20')
-            ),
+                    [(0, 100, cls.window_test_start_date),
+                     (0, 101, pd.Timestamp('2015-01-20')),
+                     (1, 110, pd.Timestamp('2015-01-09')),
+                     (1, 111, pd.Timestamp('2015-01-12')),
+                     (2, 120, cls.window_test_start_date),
+                     (2, 121, pd.Timestamp('2015-01-07'))],
+                    pd.Timestamp('2015-01-20')),
+            pd.concat([
+                cls.create_expected_df(
+                    [(0, 200, pd.Timestamp('2015-01-12')),
+                     (1, 110, pd.Timestamp('2015-01-09')),
+                     (1, 111, pd.Timestamp('2015-01-12')),
+                     (2, 220, cls.window_test_start_date),
+                     (2, 221, pd.Timestamp('2015-01-17'))],
+                    end_date
+                ) for end_date in pd.date_range('2015-01-21', '2015-01-22')
+            ]),
+            pd.concat([
+                cls.create_expected_df(
+                    [(0, 200, pd.Timestamp('2015-01-12')),
+                     (1, 310, pd.Timestamp('2015-01-09')),
+                     (1, 311, pd.Timestamp('2015-01-15')),
+                     (2, 220, cls.window_test_start_date),
+                     (2, 221, pd.Timestamp('2015-01-17'))],
+                    end_date
+                ) for end_date in pd.date_range('2015-01-23', '2015-02-05')
+            ]),
+            pd.concat([
+                cls.create_expected_df(
+                    [(0, 200, pd.Timestamp('2015-01-12')),
+                     (0, 201, pd.Timestamp('2015-02-10')),
+                     (1, np.NaN, cls.window_test_start_date),
+                     (2, 220, cls.window_test_start_date),
+                     (2, 221, pd.Timestamp('2015-01-17'))],
+                    end_date
+                ) for end_date in pd.date_range('2015-02-06', '2015-02-10')
+            ]),
         ])
 
         twoq_next = pd.concat(
             [cls.create_expected_df(
-                [(0, 200, pd.Timestamp('2015-01-09')),
-                 (1, np.NaN, pd.Timestamp(cls.window_test_start_date)),
-                 (2, 220, pd.Timestamp(cls.window_test_start_date))],
-                pd.Timestamp('2015-01-09')
-            )] +
-            [cls.create_expected_df(
-                [(0, np.NaN, pd.Timestamp(cls.window_test_start_date)),
-                 (10, np.NaN, pd.Timestamp(cls.window_test_start_date)),
-                 (20, np.NaN, pd.Timestamp(cls.window_test_start_date))],
+                [(0, np.NaN, cls.window_test_start_date),
+                 (1, np.NaN, cls.window_test_start_date),
+                 (2, 220, cls.window_test_start_date)],
                 end_date
-            ) for end_date in pd.date_range('2015-01-12', '2015-01-20')]
+            ) for end_date in pd.date_range('2015-01-09', '2015-01-11')] +
+            [cls.create_expected_df(
+                [(0, 200, pd.Timestamp('2015-01-12')),
+                 (1, np.NaN, cls.window_test_start_date),
+                 (2, 220, cls.window_test_start_date)],
+                end_date
+            ) for end_date in pd.date_range('2015-01-12', '2015-01-16')] +
+            [cls.create_expected_df(
+                [(0, 200, pd.Timestamp('2015-01-12')),
+                 (1, np.NaN, cls.window_test_start_date),
+                 (2, 220, cls.window_test_start_date),
+                 (2, 221, pd.Timestamp('2015-01-17'))],
+                end_date
+            ) for end_date in pd.date_range('2015-01-17', '2015-01-20')] +
+            [cls.create_expected_df(
+                [(0, np.NaN, cls.window_test_start_date),
+                 (1, np.NaN, cls.window_test_start_date),
+                 (2, np.NaN, cls.window_test_start_date)],
+                end_date
+            ) for end_date in pd.date_range('2015-01-21', '2015-02-10')]
         )
 
         return {

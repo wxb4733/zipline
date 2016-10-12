@@ -200,8 +200,7 @@ class EarningsEstimatesLoader(PipelineLoader):
                                       sid,
                                       sid_idx,
                                       col_to_split_adjustments,
-                                      split_adjusted_asof_idx,
-                                      spilt_dict):
+                                      split_adjusted_asof_idx):
         raise NotImplementedError('create_overwrite_for_estimate')
 
     @abstractproperty
@@ -276,8 +275,7 @@ class EarningsEstimatesLoader(PipelineLoader):
                         last_per_qtr,
                         dates,
                         assets,
-                        columns,
-                        split_dict=None):
+                        columns):
         """
         Creates an AdjustedArray from the given estimates data for the given
         dates.
@@ -309,8 +307,7 @@ class EarningsEstimatesLoader(PipelineLoader):
             split_adjusted_asof_idx = dates.searchsorted(
                 self._split_adjusted_asof
             )
-            self.collect_split_adjustments(split_dict,
-                                           assets,
+            self.collect_split_adjustments(assets,
                                            dates,
                                            col_to_split_adjustments,
                                            split_adjusted_asof_idx,
@@ -357,17 +354,17 @@ class EarningsEstimatesLoader(PipelineLoader):
                         columns,
                         col_to_split_adjustments,
                         split_adjusted_asof_idx,
-                        split_dict,
                     )
 
         quarter_shifts.groupby(level=SID_FIELD_NAME).apply(collect_overwrites)
         if self._split_adjustments:
             # Apply the remaining split adjustments.
             for column_name in self._split_adjusted_column_names:
-                for ts in col_to_split_adjustments[column_name]:
-                    col_to_all_adjustments[column_name][ts].extend(
-                        col_to_split_adjustments[column_name][ts]
-                    )
+                for sid in col_to_split_adjustments[column_name]:
+                    for ts in col_to_split_adjustments[column_name][sid]:
+                        col_to_all_adjustments[column_name][ts].extend(
+                            col_to_split_adjustments[column_name][sid][ts]
+                        )
         return col_to_all_adjustments
 
     def collect_pre_split_asof_date_adjustments(self,
@@ -386,12 +383,14 @@ class EarningsEstimatesLoader(PipelineLoader):
             sid,
             1/future_adjustment
         ) for future_adjustment in adjustments]
-        col_to_split_adjustments[column_name][0].extend(adjustments_to_undo)
+        col_to_split_adjustments[column_name][sid][0].extend(
+            adjustments_to_undo
+        )
 
         for adjustment, date_index in zip(adjustments, date_indexes):
             col_to_split_adjustments[
                 column_name
-            ][date_index].append(
+            ][sid][date_index].append(
                 Float64Multiply(
                     0,
                     split_adjusted_asof_date_idx,
@@ -402,7 +401,6 @@ class EarningsEstimatesLoader(PipelineLoader):
             )
 
     def collect_split_adjustments(self,
-                                  split_dict,
                                   assets,
                                   dates,
                                   col_to_split_adjustments,
@@ -411,7 +409,19 @@ class EarningsEstimatesLoader(PipelineLoader):
         for column_name in self._split_adjusted_column_names:
             col_to_split_adjustments[column_name] = defaultdict(list)
             for sid in assets:
-                adjustments, date_indexes, timestamps = split_dict[sid]
+                col_to_split_adjustments[column_name][sid] = defaultdict(list)
+
+                split_adjustments_for_sid =\
+                    self._split_adjustments.get_adjustments_for_sid(
+                        'splits', sid
+                    )
+                # Sort adjustments by timestamp
+                sorted(split_adjustments_for_sid, key=lambda adj: adj[0])
+                timestamps = np.array([adj[0]
+                                       for adj in split_adjustments_for_sid])
+                adjustments = np.array([adj[1]
+                                        for adj in split_adjustments_for_sid])
+                date_indexes = dates.searchsorted(timestamps)
                 last_adjustment_split_asof_idx = np.where(
                     date_indexes <= split_adjusted_asof_date_idx
                 )[0].max()
@@ -497,9 +507,14 @@ class EarningsEstimatesLoader(PipelineLoader):
                               np.where(np.diff(stale_idxs) != 1)[0]+1)
             for range in ranges:
                 if range.size:
+                    start = range[0]
+                    # Taking advantage of the fact that non-contiguous stale
+                    # ranges must be for different quarters.
+                    if range[0] < date_index:
+                        start = date_index
                     col_to_split_adjustments[
                         column_name
-                    ][date_index].append(
+                    ][sid][start].append(
                         Float64Multiply(
                             range[0],
                             range[-1],
@@ -520,8 +535,7 @@ class EarningsEstimatesLoader(PipelineLoader):
                                      sid_idx,
                                      columns,
                                      col_to_split_adjustments=None,
-                                     split_adjusted_asof_idx=None,
-                                     split_dict=None):
+                                     split_adjusted_asof_idx=None):
         """
         Add entries to the dictionary of columns to adjustments for the given
         sid and the given quarter.
@@ -573,7 +587,6 @@ class EarningsEstimatesLoader(PipelineLoader):
                         sid_idx,
                         col_to_split_adjustments,
                         split_adjusted_asof_idx,
-                        split_dict
                     ))
             # There are no estimates for the quarter. Overwrite all
             # values going up to the starting index of that quarter
@@ -601,29 +614,11 @@ class EarningsEstimatesLoader(PipelineLoader):
             column.missing_value
         )
 
-    def load_split_adjustments(self, assets, dates):
-        split_dict = {}
-        for sid in assets:
-            split_adjustments_for_sid =\
-                self._split_adjustments.get_adjustments_for_sid(
-                    'splits', sid
-                )
-            # Sort adjustments by timestamp
-            sorted(split_adjustments_for_sid, key=lambda adj: adj[0])
-            timestamps = np.array([adj[0]
-                                   for adj in split_adjustments_for_sid])
-            adjustments = np.array([adj[1]
-                                    for adj in split_adjustments_for_sid])
-            date_indexes = dates.searchsorted(timestamps)
-            split_dict[sid] = (adjustments, date_indexes, timestamps)
-        return split_dict
-
     def load_adjusted_array(self, columns, dates, assets, mask):
         # Separate out getting the columns' datasets and the datasets'
         # num_announcements attributes to ensure that we're catching the right
         # AttributeError.
         col_to_datasets = {col: col.dataset for col in columns}
-        split_adjusted_dict = self.load_split_adjustments(assets, dates)
         try:
             groups = groupby(lambda col:
                              col_to_datasets[col].num_announcements,
@@ -671,8 +666,7 @@ class EarningsEstimatesLoader(PipelineLoader):
                                                       last_per_qtr,
                                                       dates,
                                                       assets_with_data,
-                                                      columns,
-                                                      split_adjusted_dict,)
+                                                      columns)
 
             # Lookup the asset indexer once, this is so we can reindex
             # the assets returned into the assets requested for each column.
@@ -774,8 +768,7 @@ class NextEarningsEstimatesLoader(EarningsEstimatesLoader):
                                       sid,
                                       sid_idx,
                                       col_to_split_adjustments=None,
-                                      split_adjusted_asof_idx=None,
-                                      split_dict=None):
+                                      split_adjusted_asof_idx=None):
         overwrites = [self.array_overwrites_dict[column.dtype](
             0,
             next_qtr_start_idx - 1,
@@ -792,7 +785,6 @@ class NextEarningsEstimatesLoader(EarningsEstimatesLoader):
             # If we haven't reached the split-adjusted-asof date, we need to
             # cumulatively re-apply all adjustments before the
             # next_qtr_start_idx.
-            import pdb; pdb.set_trace()
             if next_qtr_start_idx < split_adjusted_asof_idx:
                 for ts in col_to_split_adjustments[column_name][sid]:
                     if ts < next_qtr_start_idx:
@@ -805,7 +797,7 @@ class NextEarningsEstimatesLoader(EarningsEstimatesLoader):
                                 next_qtr_start_idx - 1,
                                 sid,
                                 sid,
-                                adjustment
+                                adjustment.value
                             )
                             for adjustment
                             in col_to_split_adjustments[column_name][sid][ts]
@@ -817,38 +809,33 @@ class NextEarningsEstimatesLoader(EarningsEstimatesLoader):
             # will also need to determine how stale the data is on the date
             # of the adjustment and apply it forward accordingly.
             else:
-                adjustments, dates, timestamps = split_dict[sid]
-                post_adjusted_idxs = np.where(
-                    (dates < next_qtr_start_idx) &
-                    (split_adjusted_asof_idx <= dates)
-                )
-                for adjustment, timestamp in zip(
-                        adjustments[post_adjusted_idxs],
-                        timestamps[post_adjusted_idxs]
-                ):
-                    end_idx = next_qtr_start_idx - 1
-                    newest_kd_for_qtr = self.estimates[
-                        (self.estimates[SID_FIELD_NAME] == sid) &
-                        (self.estimates[NORMALIZED_QUARTERS] ==
-                         requested_quarter) &
-                        (self.estimates[TS_FIELD_NAME] >=
-                         timestamp)
-                    ][TS_FIELD_NAME].min()
-                    if pd.notnull(newest_kd_for_qtr):
-                        newest_kd_idx = last_per_qtr.index.searchsorted(
-                            newest_kd_for_qtr, side='right'
-                        )
-                        if newest_kd_idx < end_idx:
-                            end_idx = newest_kd_idx - 1
-                    overwrites.append(
-                        Float64Multiply(
-                            0,
-                            end_idx,
-                            sid,
-                            sid,
-                            adjustment
-                        )
-                    )
+                for ts in col_to_split_adjustments[column_name][sid]:
+                    if split_adjusted_asof_idx <= ts < next_qtr_start_idx:
+                        end_idx = next_qtr_start_idx - 1
+                        newest_kd_for_qtr = self.estimates[
+                            (self.estimates[SID_FIELD_NAME] == sid) &
+                            (self.estimates[NORMALIZED_QUARTERS] ==
+                             requested_quarter) &
+                            (self.estimates[TS_FIELD_NAME] >=
+                             last_per_qtr.index[ts])
+                        ][TS_FIELD_NAME].min()
+                        if pd.notnull(newest_kd_for_qtr):
+                            newest_kd_idx = last_per_qtr.index.searchsorted(
+                                newest_kd_for_qtr, side='right'
+                            )
+                            if newest_kd_idx <= end_idx:
+                                end_idx = newest_kd_idx - 1
+                        overwrites.extend([
+                            Float64Multiply(
+                                0,
+                                end_idx,
+                                sid,
+                                sid,
+                                adjustment.value
+                            )
+                            for adjustment
+                            in col_to_split_adjustments[column_name][sid][ts]
+                        ])
 
         return overwrites
 

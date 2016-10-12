@@ -1294,16 +1294,25 @@ class PreviousWithSplitAdjustedWindows(WithSplitAdjustedWindows,
                     [(0, 101, pd.Timestamp('2015-01-20')),
                      (1, 111*.3, pd.Timestamp('2015-01-22')),
                      (2, 121*.7*.8, pd.Timestamp('2015-01-20')),
-                     (3, 231, pd.Timestamp('2015-01-09'))],
+                     (3, 231, pd.Timestamp('2015-01-20'))],
                     end_date
-                ) for end_date in pd.date_range('2015-01-22', '2015-02-04')
+                ) for end_date in pd.date_range('2015-01-22', '2015-01-29')
+            ]),
+            pd.concat([
+                cls.create_expected_df(
+                    [(0, 101*7, pd.Timestamp('2015-01-20')),
+                     (1, 111*.3, pd.Timestamp('2015-01-22')),
+                     (2, 121*.7*.8*.9, pd.Timestamp('2015-01-20')),
+                     (3, 231, pd.Timestamp('2015-01-20'))],
+                    end_date
+                ) for end_date in pd.date_range('2015-01-30', '2015-02-04')
             ]),
             pd.concat([
                 cls.create_expected_df(
                     [(0, 101*7, pd.Timestamp('2015-01-20')),
                      (1, 311*.3, pd.Timestamp('2015-02-05')),
-                     (2, 121*.5*.6*.7*.8*.9, pd.Timestamp('2015-01-20')),
-                     (3, 231, pd.Timestamp('2015-01-09'))],
+                     (2, 121*.7*.8*.9, pd.Timestamp('2015-01-20')),
+                     (3, 231, pd.Timestamp('2015-01-20'))],
                     end_date
                 ) for end_date in pd.date_range('2015-02-05', '2015-02-09')
                 ]),
@@ -1311,7 +1320,7 @@ class PreviousWithSplitAdjustedWindows(WithSplitAdjustedWindows,
                 [(0, 201, pd.Timestamp('2015-02-10')),
                  (1, 311*.3, pd.Timestamp('2015-02-05')),
                  (2, 221*.8*.9, pd.Timestamp('2015-02-10')),
-                 (3, 231, pd.Timestamp('2015-01-09'))],
+                 (3, 231, pd.Timestamp('2015-01-20'))],
                 pd.Timestamp('2015-02-10')
             ),
         ])
@@ -1337,8 +1346,8 @@ class PreviousWithSplitAdjustedWindows(WithSplitAdjustedWindows,
             [cls.create_expected_df(
                 [(0, 101*7, pd.Timestamp('2015-02-10')),
                  (1, np.NaN, pd.Timestamp('2015-02-05')),
-                 (2, 121*.5*.6*.7*.8*.9, pd.Timestamp('2015-02-10')),
-                 (3, 131*11*12, pd.Timestamp('2015-01-09'))],
+                 (2, 121*.7*.8*.9, pd.Timestamp('2015-02-10')),
+                 (3, 131*11*12, pd.Timestamp('2015-01-20'))],
                 pd.Timestamp('2015-02-10')
             )]
         )
@@ -1404,15 +1413,16 @@ class NextWithSplitAdjustedWindows(WithSplitAdjustedWindows, ZiplineTestCase):
                 ) for end_date in pd.date_range('2015-01-15', '2015-01-16')
             ]),
             cls.create_expected_df(
-                    [(0, 100*5*6, cls.window_test_start_date),
-                     (0, 101, pd.Timestamp('2015-01-20')),
-                     (1, 110*.3, pd.Timestamp('2015-01-09')),
-                     (1, 111*.3, pd.Timestamp('2015-01-12')),
-                     (2, 120*.7*.8, cls.window_test_start_date),
-                     (2, 121*.7*.8, pd.Timestamp('2015-01-07')),
-                     (3, 230*11*12, cls.window_test_start_date),
-                     (3, 231, pd.Timestamp('2015-01-20'))],
-                    pd.Timestamp('2015-01-20')),
+                [(0, 100*5*6, cls.window_test_start_date),
+                 (0, 101, pd.Timestamp('2015-01-20')),
+                 (1, 110*.3, pd.Timestamp('2015-01-09')),
+                 (1, 111*.3, pd.Timestamp('2015-01-12')),
+                 (2, 120*.7*.8, cls.window_test_start_date),
+                 (2, 121*.7*.8, pd.Timestamp('2015-01-07')),
+                 (3, 230*11*12, cls.window_test_start_date),
+                 (3, 231, pd.Timestamp('2015-01-20'))],
+                pd.Timestamp('2015-01-20')
+            ),
             pd.concat([
                 cls.create_expected_df(
                     [(0, 200*5*6, pd.Timestamp('2015-01-12')),
@@ -1492,9 +1502,10 @@ class NextWithSplitAdjustedWindows(WithSplitAdjustedWindows, ZiplineTestCase):
                 end_date
             ) for end_date in pd.date_range('2015-01-15', '2015-01-16')] +
             [cls.create_expected_df(
-                [(0, np.NaN, cls.window_test_start_date),
+                [(0, 200*5*6, pd.Timestamp('2015-01-12')),
                  (1, np.NaN, cls.window_test_start_date),
-                 (2, np.NaN, cls.window_test_start_date),
+                 (2, 220*.7*.8, cls.window_test_start_date),
+                 (2, 221*.8, pd.Timestamp('2015-01-17')),
                  (3, np.NaN, cls.window_test_start_date)],
                 pd.Timestamp('2015-01-20')
             )] +

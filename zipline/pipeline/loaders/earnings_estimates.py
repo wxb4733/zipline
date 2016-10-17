@@ -302,8 +302,9 @@ class EarningsEstimatesLoader(PipelineLoader):
         adjusted_array : AdjustedArray
             The array of data and overwrites for the given column.
         """
+        col_to_split_adjustments = {}
+        split_adjusted_asof_idx = None
         if self._split_adjustments:
-            col_to_split_adjustments = {}
             split_adjusted_asof_idx = dates.searchsorted(
                 self._split_adjusted_asof
             )

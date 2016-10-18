@@ -422,7 +422,7 @@ class EarningsEstimatesLoader(PipelineLoader):
                     )
                 # Sort adjustments by timestamp
                 sorted(split_adjustments_for_sid, key=lambda adj: adj[0])
-                timestamps = np.array([adj[0]
+                timestamps = pd.DatetimeIndex([adj[0]
                                        for adj in split_adjustments_for_sid])
                 adjustments = np.array([adj[1]
                                         for adj in split_adjustments_for_sid])

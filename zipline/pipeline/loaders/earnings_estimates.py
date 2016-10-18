@@ -304,11 +304,13 @@ class EarningsEstimatesLoader(PipelineLoader):
         """
         col_to_split_adjustments = {}
         split_adjusted_asof_idx = None
+        sid_to_idx = dict(zip(assets, range(len(assets))))
         if self._split_adjustments:
             split_adjusted_asof_idx = dates.searchsorted(
                 self._split_adjusted_asof
             )
             self.collect_split_adjustments(assets,
+                                           sid_to_idx,
                                            dates,
                                            col_to_split_adjustments,
                                            split_adjusted_asof_idx,
@@ -322,7 +324,6 @@ class EarningsEstimatesLoader(PipelineLoader):
             level=[SID_FIELD_NAME, NORMALIZED_QUARTERS]
         ).nth(-1)
 
-        sid_to_idx = dict(zip(assets, range(len(assets))))
         col_to_all_adjustments = defaultdict(dict)
 
         for column in columns:
@@ -371,6 +372,7 @@ class EarningsEstimatesLoader(PipelineLoader):
     def collect_pre_split_asof_date_adjustments(self,
                                                 split_adjusted_asof_date_idx,
                                                 sid,
+                                                sid_idx,
                                                 adjustments,
                                                 col_to_split_adjustments,
                                                 column_name,
@@ -380,8 +382,8 @@ class EarningsEstimatesLoader(PipelineLoader):
         adjustments_to_undo = [Float64Multiply(
             0,
             split_adjusted_asof_date_idx,
-            sid,
-            sid,
+            sid_idx,
+            sid_idx,
             1/future_adjustment
         ) for future_adjustment in adjustments]
         col_to_split_adjustments[column_name][sid][0].extend(
@@ -395,14 +397,15 @@ class EarningsEstimatesLoader(PipelineLoader):
                 Float64Multiply(
                     0,
                     split_adjusted_asof_date_idx,
-                    sid,
-                    sid,
+                    sid_idx,
+                    sid_idx,
                     adjustment
                 )
             )
 
     def collect_split_adjustments(self,
                                   assets,
+                                  sid_to_idx,
                                   dates,
                                   col_to_split_adjustments,
                                   split_adjusted_asof_date_idx,
@@ -431,6 +434,7 @@ class EarningsEstimatesLoader(PipelineLoader):
                 self.collect_pre_split_asof_date_adjustments(
                     split_adjusted_asof_date_idx,
                     sid,
+                    sid_to_idx[sid],
                     # + 1 here because we want to also un-apply any adjustment
                     # on the split_adjusted_asof_idx.
                     adjustments[:last_adjustment_split_asof_idx + 1],
@@ -447,6 +451,7 @@ class EarningsEstimatesLoader(PipelineLoader):
                     last_adjustment_split_asof_idx,
                     requested_qtr_data,
                     sid,
+                    sid_to_idx[sid],
                     timestamps,
                 )
 
@@ -460,6 +465,7 @@ class EarningsEstimatesLoader(PipelineLoader):
             last_adjustment_split_asof_idx,
             requested_qtr_data,
             sid,
+            sid_idx,
             timestamps
     ):
         sid_estimates = self.estimates[self.estimates[SID_FIELD_NAME] == sid]
@@ -520,8 +526,8 @@ class EarningsEstimatesLoader(PipelineLoader):
                         Float64Multiply(
                             range[0],
                             range[-1],
-                            sid,
-                            sid,
+                            sid_idx,
+                            sid_idx,
                             adjustment
                         )
                     )

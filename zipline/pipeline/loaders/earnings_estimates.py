@@ -410,6 +410,7 @@ class EarningsEstimatesLoader(PipelineLoader):
         for column_name in self._split_adjusted_column_names:
             col_to_split_adjustments[column_name] = defaultdict(list)
             for sid in assets:
+                sid = int(sid)
                 col_to_split_adjustments[column_name][sid] = defaultdict(list)
 
                 split_adjustments_for_sid =\

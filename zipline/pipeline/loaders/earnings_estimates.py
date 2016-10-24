@@ -275,6 +275,7 @@ class EarningsEstimatesLoader(PipelineLoader):
                         last_per_qtr,
                         dates,
                         assets,
+                        assets_with_data,
                         columns):
         """
         Creates an AdjustedArray from the given estimates data for the given
@@ -312,7 +313,7 @@ class EarningsEstimatesLoader(PipelineLoader):
             )
             pre_asof_split_adjustments_for_sids = {}
             self.get_split_adjustments_for_sids(
-                assets,
+                assets_with_data,
                 pre_asof_split_adjustments_for_sids,
                 post_asof_split_adjustments_for_sids,
                 split_adjusted_asof_idx,
@@ -321,7 +322,7 @@ class EarningsEstimatesLoader(PipelineLoader):
 
             self.collect_pre_split_asof_date_adjustments(
                 split_adjusted_asof_idx,
-                assets,
+                assets_with_data,
                 sid_to_idx,
                 pre_asof_split_adjustments_for_sids,
                 col_to_split_adjustments,
@@ -653,7 +654,8 @@ class EarningsEstimatesLoader(PipelineLoader):
                 requested_qtr_data,
                 last_per_qtr,
                 dates,
-                requested_qtr_data.columns.levels[1],
+                assets,
+                assets_with_data,
                 columns
             )
 

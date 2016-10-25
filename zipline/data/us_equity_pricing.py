@@ -1001,7 +1001,10 @@ class SQLiteAdjustmentWriter(object):
             try:
                 prev_close = equity_daily_bar_reader.get_value(
                     sid, prev_close_date, 'close')
-                if prev_close != 0.0:
+
+                # If there is a previous close, we can calculate the
+                # ratio.
+                if prev_close != -1:
                     ratio = 1.0 - amount / prev_close
                     ratios[i] = ratio
                     # only assign effective_date when data is found

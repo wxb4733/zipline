@@ -755,14 +755,20 @@ class EarningsEstimatesLoader(PipelineLoader):
 
         requested_qtr_timeline = requested_qtr_data[SHIFTED_NORMALIZED_QTRS][
             sid
+        ].reset_index()
+        requested_qtr_timeline = requested_qtr_timeline[
+            requested_qtr_timeline[sid].notnull()
         ]
-        qtr_ranges = np.split(requested_qtr_timeline.values,
-                              np.where(
-                                  np.diff(requested_qtr_timeline) != 0
-                              )[0] + 1)
+
+        qtr_ranges = [
+            np.unique(rng) for rng in np.split(
+                requested_qtr_timeline[sid],
+                np.where(np.diff(requested_qtr_timeline[sid]) != 0)[0] + 1
+            )
+        ]
         qtr_ranges_idxs = np.split(
-            range(len(requested_qtr_timeline)),
-            np.where(np.diff(requested_qtr_timeline.values) != 0)[0] + 1
+            requested_qtr_timeline.index,
+            np.where(np.diff(requested_qtr_timeline[sid]) != 0)[0] + 1
         )
         for i, qtr_range_idxs in enumerate(qtr_ranges_idxs):
             for adjustment, date_index, timestamp in zip(*post_adjustments):
@@ -896,6 +902,35 @@ class EarningsEstimatesLoader(PipelineLoader):
                                          upper_bound,
                                          requested_quarter,
                                          sid_estimates):
+        """
+        Determines the date until which the adjustment at the given date
+        index should be applied for the given quarter.
+
+        Parameters
+        ----------
+        date_index : int
+            The date index into the calendar dates at which the adjustment
+            occurs.
+        dates : pd.DatetimeIndex
+            The calendar dates over which the Pipeline is being computed.
+        upper_bound : int
+            The index of the upper bound in the calendar dates. This is the
+            index until which the adjusment will be applied unless there is
+            information for the requested quarter that comes in on or before
+            that date.
+        requested_quarter : float
+            The quarter for which we are determining how the adjustment
+            should be applied.
+        sid_estimates : pd.DataFrame
+            The DataFrame of estimates data for the sid for which we're
+            applying the given adjustment.
+
+        Returns
+        -------
+        end_idx : int
+            The last index to which the adjustment should be applied for the
+            given quarter/sid.
+        """
         end_idx = upper_bound
         # Find the next newest kd that happens on or after
         # the date of this adjustment

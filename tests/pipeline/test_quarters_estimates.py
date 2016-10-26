@@ -1147,6 +1147,11 @@ class NextEstimateWindows(WithEstimateWindows, ZiplineTestCase):
 
 
 class WithSplitAdjustedWindows(WithEstimateWindows):
+    """
+    ZiplineTestCase mixin providing fixures and a test to test running a
+    Pipeline with an estimates loader over differently-sized windows and with
+    split adjustments.
+    """
     @classmethod
     def make_events(cls):
         # Add an extra sid that has a release before the split-asof-date in
@@ -1186,9 +1191,10 @@ class WithSplitAdjustedWindows(WithEstimateWindows):
     def make_splits_data(cls):
         sid_0_splits = pd.DataFrame({
             SID_FIELD_NAME: 0,
-            'ratio': (2., 3., 4., 5., 6., 7.,),
-            'effective_date': (  # Split before Q1 release - after first
-                                 # estimate
+            'ratio': (-1., 2., 3., 4., 5., 6., 7., 100),
+            'effective_date': (pd.Timestamp('2014-01-01'),  # Filter out
+                               # Split before Q1 release - after first
+                               # estimate
                                pd.Timestamp('2015-01-07'),
                                # Split before Q1 release
                                pd.Timestamp('2015-01-09'),
@@ -1199,7 +1205,9 @@ class WithSplitAdjustedWindows(WithEstimateWindows):
                                # Split before Q1 release
                                pd.Timestamp('2015-01-18'),
                                # Split after Q1 release and before Q2 release
-                               pd.Timestamp('2015-01-30'))
+                               pd.Timestamp('2015-01-30'),
+                               # Filter out
+                               pd.Timestamp('2016-01-01'))
         })
 
         sid_10_splits = pd.DataFrame({
@@ -1242,8 +1250,18 @@ class WithSplitAdjustedWindows(WithEstimateWindows):
                                pd.Timestamp('2015-01-18')),
         })
 
+        sid_40_splits = pd.DataFrame({
+            SID_FIELD_NAME: 40,
+            'ratio': 4,
+            'effective_date': (pd.Timestamp('2015-01-15'),)
+        })
+
         return pd.concat([
-            sid_0_splits, sid_10_splits, sid_20_splits, sid_30_splits
+            sid_0_splits,
+            sid_10_splits,
+            sid_20_splits,
+            sid_30_splits,
+            sid_40_splits,
         ])
 
 

@@ -92,8 +92,8 @@ def validate_column_specs(events, columns):
         )
 
 
-def validate_split_adjusted_columns(name_map, split_adjusted_column_names):
-    to_be_split = set(split_adjusted_column_names)
+def validate_split_adjusted_column_specs(name_map, columns):
+    to_be_split = set(columns)
     available = name_map.viewkeys()
     extra = to_be_split - available
     if extra:
@@ -109,11 +109,38 @@ def validate_split_adjusted_columns(name_map, split_adjusted_column_names):
         )
 
 
+def validate_split_adjustments_args(name_map,
+                                    split_adjusted_column_names,
+                                    split_adjustments_loader,
+                                    split_adjusted_asof):
+    if (split_adjusted_column_names and
+            split_adjustments_loader and
+            split_adjusted_asof):
+        validate_split_adjusted_column_specs(name_map,
+                                             split_adjusted_column_names)
+    elif (split_adjusted_column_names or
+            split_adjustments_loader or
+            split_adjusted_asof):
+        split_adjusted_vars = [
+            (split_adjusted_column_names, "split_adjusted_column_names"),
+            (split_adjustments_loader, "split_adjustments_loader"),
+            (split_adjusted_asof, "split_adjusted_asof")
+        ]
+        provided = [name for var, name in split_adjusted_vars if var]
+        not_provided = [name for var, name in split_adjusted_vars if not var]
+        raise ValueError(
+            "Provided only %s, must also provide %s to split-adjust estimates."
+            % (",".join(provided), ",".join(not_provided))
+        )
+
+
 class EarningsEstimatesLoader(PipelineLoader):
     """
     An abstract pipeline loader for estimates data that can load data a
     variable number of quarters forwards/backwards from calendar dates
     depending on the `num_announcements` attribute of the columns' dataset.
+    If split adjustments are to be applied, a loader, split-adjusted columns,
+    and the split-adjusted asof-date must be supplied.
 
     Parameters
     ----------
@@ -139,6 +166,17 @@ class EarningsEstimatesLoader(PipelineLoader):
     name_map : dict[str -> str]
         A map of names of BoundColumns that this loader will load to the
         names of the corresponding columns in `events`.
+    split_adjustments_loader : SQLiteAdjustmentReader
+        The loader to use for reading split adjustments.
+    split_adjusted_column_names : iterable of str
+        The column names that should be split-adjusted.
+    split_adjusted_asof : pd.Timestamp
+        The date that separates data into 2 halves: the first half is the set
+        of dates up to and including the split_adjusted_asof date. All
+        adjustments occurring during this first half are applied  to all
+        dates in this first half. The second half is the set of dates after
+        the split_adjusted_asof date. All adjustments occuring during this
+        second half are applied sequentially as they appear in the timeline.
     """
     def __init__(self,
                  estimates,
@@ -151,11 +189,17 @@ class EarningsEstimatesLoader(PipelineLoader):
             name_map
         )
 
-        if split_adjusted_column_names:
-            validate_split_adjusted_columns(
-                name_map,
-                split_adjusted_column_names
-            )
+        validate_split_adjustments_args(
+            name_map,
+            split_adjusted_column_names,
+            split_adjustments_loader,
+            split_adjusted_asof
+        )
+
+        self._split_adjustments = split_adjustments_loader
+        self._split_adjusted_column_names = split_adjusted_column_names
+        self._split_adjusted_asof = split_adjusted_asof
+        self._split_adjustment_dict = {}
 
         self.estimates = estimates[
             estimates[EVENT_DATE_FIELD_NAME].notnull() &
@@ -177,10 +221,6 @@ class EarningsEstimatesLoader(PipelineLoader):
         }
 
         self.name_map = name_map
-        self._split_adjustments = split_adjustments_loader
-        self._split_adjusted_column_names = split_adjusted_column_names
-        self._split_adjusted_asof = split_adjusted_asof
-        self._split_adjustment_dict = {}
 
     @abstractmethod
     def get_zeroth_quarter_idx(self, stacked_last_per_qtr):

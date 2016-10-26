@@ -117,6 +117,16 @@ class WithEstimates(WithTradingSessions, WithAdjustmentReader):
                                                   cls.columns.items()})
 
 
+dummy_df = pd.DataFrame({SID_FIELD_NAME: 0},
+                        columns=[SID_FIELD_NAME,
+                                 TS_FIELD_NAME,
+                                 EVENT_DATE_FIELD_NAME,
+                                 FISCAL_QUARTER_FIELD_NAME,
+                                 FISCAL_YEAR_FIELD_NAME,
+                                 'estimate'],
+                        index=[0])
+
+
 class WithWrongLoaderDefinition(WithEstimates):
     """
     ZiplineTestCase mixin providing cls.events as a class level fixture and
@@ -139,14 +149,7 @@ class WithWrongLoaderDefinition(WithEstimates):
 
     @classmethod
     def make_events(cls):
-        return pd.DataFrame({SID_FIELD_NAME: 0},
-                            columns=[SID_FIELD_NAME,
-                                     TS_FIELD_NAME,
-                                     EVENT_DATE_FIELD_NAME,
-                                     FISCAL_QUARTER_FIELD_NAME,
-                                     FISCAL_YEAR_FIELD_NAME,
-                                     'estimate'],
-                            index=[0])
+        return dummy_df
 
     def test_wrong_num_announcements_passed(self):
         bad_dataset1 = QuartersEstimates(-1)
@@ -209,6 +212,63 @@ class NextWithWrongNumQuarters(WithWrongLoaderDefinition,
     @classmethod
     def make_loader(cls, events, columns):
         return NextEarningsEstimatesLoader(events, columns)
+
+
+options = ["split_adjustments_loader",
+           "split_adjusted_column_names",
+           "split_adjusted_asof"]
+
+
+class WithWrongSplitsLoaderDefinition(WithEstimates, ZiplineTestCase):
+    @classmethod
+    def init_class_fixtures(cls):
+        super(WithEstimates, cls).init_class_fixtures()
+
+
+    @parameterized.expand(itertools.product(
+        (NextEarningsEstimatesLoader, PreviousEarningsEstimatesLoader),
+        itertools.chain.from_iterable(
+            (itertools.combinations(options, n)
+             for n in range(1, len(options)))
+        )
+    ))
+    def test_no_num_announcements_attr(self, loader, to_remove):
+        columns = {
+            Estimates.event_date: 'event_date',
+            Estimates.fiscal_quarter: 'fiscal_quarter',
+            Estimates.fiscal_year: 'fiscal_year',
+            Estimates.estimate: 'estimate'
+        }
+        split_args = {"split_adjustments_loader": self.adjustment_reader,
+                      "split_adjusted_column_names": ["estimate"],
+                      "split_adjusted_asof": pd.Timestamp("2015-01-01")}
+        for item in to_remove:
+            split_args.pop(item)
+        with self.assertRaises(ValueError):
+            loader(dummy_df,
+                   {column.name: val for column, val in
+                    columns.items()},
+                   **split_args)
+
+
+    @parameterized.expand(itertools.product(
+        (NextEarningsEstimatesLoader, PreviousEarningsEstimatesLoader),
+    ))
+    def test_extra_splits_columns_passed(self, loader):
+        columns = {
+            Estimates.event_date: 'event_date',
+            Estimates.fiscal_quarter: 'fiscal_quarter',
+            Estimates.fiscal_year: 'fiscal_year',
+            Estimates.estimate: 'estimate'
+        }
+
+        with self.assertRaises(ValueError):
+            loader(dummy_df,
+                   {column.name: val for column, val in
+                    columns.items()},
+                   split_adjustments_loader=self.adjustment_reader,
+                   split_adjusted_column_names=["estimate", "extra_col"],
+                   split_adjusted_asof=pd.Timestamp("2015-01-01"))
 
 
 class WithEstimatesTimeZero(WithEstimates):

@@ -889,8 +889,8 @@ class EarningsEstimatesLoader(PipelineLoader):
         )
         sorted(adjustments, key=lambda adj: adj[0])
         # Get rid of any adjustments that happen outside of our date index.
-        adjustments = filter(lambda x: dates[0] <= x[0] <= dates[-1],
-                             adjustments)
+        adjustments = list(filter(lambda x: dates[0] <= x[0] <= dates[-1],
+                                  adjustments))
         adjustment_values = np.array([adj[1] for adj in adjustments])
         timestamps = pd.DatetimeIndex([adj[0] for adj in adjustments])
         # We need the first date on which we would have known about each

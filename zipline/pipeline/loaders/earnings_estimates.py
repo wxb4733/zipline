@@ -321,6 +321,33 @@ class EarningsEstimatesLoader(PipelineLoader):
         # dates so that we have a value for each calendar date.
         return requested_qtr_data.unstack(SID_FIELD_NAME).reindex(dates)
 
+    def get_split_adjusted_asof_idx(self, dates):
+        """
+        Compute the index in `dates` where the split-adjusted-asof-date
+        falls. This is the date up to which, and including which, we will
+        need to unapply all adjustments for and then re-apply them as they
+        come in. After this date, adjustments are applied as normal.
+
+        Parameters
+        ----------
+        dates : pd.DatetimeIndex
+            The calendar dates over which the Pipeline is being computed.
+
+        Returns
+        -------
+        split_adjusted_asof_idx : int
+            The index in `dates` at which the data should be split.
+        """
+        split_adjusted_asof_idx = dates.searchsorted(
+            self._split_adjusted_asof
+        )
+        # The split-asof date is after the date index.
+        if split_adjusted_asof_idx == len(dates):
+            split_adjusted_asof_idx = len(dates) - 1
+        elif self._split_adjusted_asof < dates[0].tz_localize(None):
+            split_adjusted_asof_idx = -1
+        return split_adjusted_asof_idx
+
     def get_adjustments(self,
                         zero_qtr_data,
                         requested_qtr_data,
@@ -405,8 +432,8 @@ class EarningsEstimatesLoader(PipelineLoader):
                     )
             if self._split_adjustments:
                 # Add all splits to the adjustment dict for this sid.
-                split_adjusted_asof_idx = dates.searchsorted(
-                    self._split_adjusted_asof
+                split_adjusted_asof_idx = self.get_split_adjusted_asof_idx(
+                    dates
                 )
                 (pre_adjustments,
                  post_adjustments) = self.retrieve_adjustments_for_sid(

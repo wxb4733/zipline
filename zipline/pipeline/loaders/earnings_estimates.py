@@ -94,7 +94,7 @@ def validate_column_specs(events, columns):
 
 def validate_split_adjusted_column_specs(name_map, columns):
     to_be_split = set(columns)
-    available = name_map.viewkeys()
+    available = set(name_map.keys())
     extra = to_be_split - available
     if extra:
         raise ValueError(

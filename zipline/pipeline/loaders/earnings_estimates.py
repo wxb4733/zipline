@@ -1139,11 +1139,11 @@ class NextEarningsEstimatesLoader(EarningsEstimatesLoader):
                                 )
                             )
 
-            self.merge_split_adjustments_with_overwrites(
-                pre_adjustments_dict,
-                post_adjustments_dict,
-                adjustments_for_sid
-            )
+        self.merge_split_adjustments_with_overwrites(
+            pre_adjustments_dict,
+            post_adjustments_dict,
+            adjustments_for_sid
+        )
 
 
 class PreviousEarningsEstimatesLoader(EarningsEstimatesLoader):

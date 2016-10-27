@@ -795,17 +795,19 @@ class EarningsEstimatesLoader(PipelineLoader):
                 # We only want to apply the adjustment if we have any stale
                 # data to apply it to.
                 if qtr_range[0] <= end_idx:
-                    col_to_split_adjustments[
-                        column_name
-                    ][start_idx].append(
-                        Float64Multiply(
-                            qtr_range[0],  # Always apply from first day of qtr
-                            end_idx,
-                            sid_idx,
-                            sid_idx,
-                            adjustment
+                    for column_name in self._split_adjusted_column_names:
+                        col_to_split_adjustments[
+                            column_name
+                        ][start_idx].append(
+                            Float64Multiply(
+                                # Always apply from first day of qtr
+                                qtr_range[0],
+                                end_idx,
+                                sid_idx,
+                                sid_idx,
+                                adjustment
+                            )
                         )
-                    )
 
         return col_to_split_adjustments
 

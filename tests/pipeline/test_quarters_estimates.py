@@ -224,7 +224,6 @@ class WithWrongSplitsLoaderDefinition(WithEstimates, ZiplineTestCase):
     def init_class_fixtures(cls):
         super(WithEstimates, cls).init_class_fixtures()
 
-
     @parameterized.expand(itertools.product(
         (NextEarningsEstimatesLoader, PreviousEarningsEstimatesLoader),
         itertools.chain.from_iterable(
@@ -249,7 +248,6 @@ class WithWrongSplitsLoaderDefinition(WithEstimates, ZiplineTestCase):
                    {column.name: val for column, val in
                     columns.items()},
                    **split_args)
-
 
     @parameterized.expand(itertools.product(
         (NextEarningsEstimatesLoader, PreviousEarningsEstimatesLoader),
@@ -1005,11 +1003,8 @@ class WithEstimateWindows(WithEstimates):
                     trading_days[:today_idx + 1]
                 ).values
                 timeline_start_idx = (len(today_timeline) - window_len)
-                try:
-                    assert_almost_equal(estimate,
-                                        today_timeline[timeline_start_idx:])
-                except AssertionError:
-                    import pdb; pdb.set_trace()
+                assert_almost_equal(estimate,
+                                    today_timeline[timeline_start_idx:])
 
         engine = SimplePipelineEngine(
             lambda x: self.loader,
@@ -1274,40 +1269,40 @@ class WithSplitAdjustedWindows(WithEstimateWindows):
             SID_FIELD_NAME: 10,
             'ratio': (.2, .3),
             'effective_date': (  # Split before Q1 release - before first
-                                 # estimate
-                               pd.Timestamp('2015-01-07'),
-                               # Split before Q1 release
-                               pd.Timestamp('2015-01-20')),
+                # estimate
+                pd.Timestamp('2015-01-07'),
+                # Split before Q1 release
+                pd.Timestamp('2015-01-20')),
         })
 
         sid_20_splits = pd.DataFrame({
             SID_FIELD_NAME: 20,
             'ratio': (.4, .5, .6, .7, .8, .9,),
             'effective_date': (  # Sid 2:  we want a sid with split dates that
-                                 # collide with another sid to make sure splits
-                                 # are correctly applied for both sids.
-                               pd.Timestamp('2015-01-07'),
-                               pd.Timestamp('2015-01-09'),
-                               pd.Timestamp('2015-01-13'),
-                               pd.Timestamp('2015-01-15'),
-                               pd.Timestamp('2015-01-18'),
-                               pd.Timestamp('2015-01-30')),
+                # collide with another sid to make sure splits
+                # are correctly applied for both sids.
+                pd.Timestamp('2015-01-07'),
+                pd.Timestamp('2015-01-09'),
+                pd.Timestamp('2015-01-13'),
+                pd.Timestamp('2015-01-15'),
+                pd.Timestamp('2015-01-18'),
+                pd.Timestamp('2015-01-30')),
         })
 
         sid_30_splits = pd.DataFrame({
             SID_FIELD_NAME: 30,
             'ratio': (8, 9, 10, 11, 12),
             'effective_date': (  # Split before the release and before the
-                                 # split-asof-date.
-                               pd.Timestamp('2015-01-07'),
-                               # Split on date of release but before the
-                               # split-asof-date.
-                               pd.Timestamp('2015-01-09'),
-                               # Split after the release, but before the
-                               # split-asof-date.
-                               pd.Timestamp('2015-01-13'),
-                               pd.Timestamp('2015-01-15'),
-                               pd.Timestamp('2015-01-18')),
+                # split-asof-date.
+                pd.Timestamp('2015-01-07'),
+                # Split on date of release but before the
+                # split-asof-date.
+                pd.Timestamp('2015-01-09'),
+                # Split after the release, but before the
+                # split-asof-date.
+                pd.Timestamp('2015-01-13'),
+                pd.Timestamp('2015-01-15'),
+                pd.Timestamp('2015-01-18')),
         })
 
         sid_40_splits = pd.DataFrame({

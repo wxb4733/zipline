@@ -4,7 +4,7 @@ from collections import defaultdict
 import numpy as np
 import pandas as pd
 from six import viewvalues
-from toolz import groupby, merge
+from toolz import groupby
 
 from zipline.lib.adjusted_array import AdjustedArray
 from zipline.lib.adjustment import (
@@ -243,7 +243,6 @@ class EarningsEstimatesLoader(PipelineLoader):
                                       split_adjusted_asof_idx):
         raise NotImplementedError('create_overwrite_for_estimate')
 
-
     @abstractmethod
     def collect_split_adjustments(self,
                                   adjustments_for_sid,
@@ -411,8 +410,8 @@ class EarningsEstimatesLoader(PipelineLoader):
                 )
                 (pre_adjustments,
                  post_adjustments) = self.retrieve_adjustments_for_sid(
-                        dates, sid, split_adjusted_asof_idx
-                    )
+                    dates, sid, split_adjusted_asof_idx
+                )
                 self.collect_split_adjustments(
                     all_adjustments_for_sid,
                     requested_qtr_data,
@@ -433,7 +432,6 @@ class EarningsEstimatesLoader(PipelineLoader):
 
         quarter_shifts.groupby(level=SID_FIELD_NAME).apply(collect_adjustments)
         return col_to_all_adjustments
-
 
     def create_overwrites_for_quarter(self,
                                       col_to_overwrites,
@@ -500,7 +498,6 @@ class EarningsEstimatesLoader(PipelineLoader):
                         sid_idx
                     ),
                 ])
-
 
     def overwrite_with_null(self,
                             column,
@@ -717,7 +714,6 @@ class EarningsEstimatesLoader(PipelineLoader):
                 )
         return col_to_split_adjustments
 
-
     def collect_post_asof_split_adjustments(self,
                                             post_adjustments,
                                             requested_qtr_data,
@@ -753,6 +749,7 @@ class EarningsEstimatesLoader(PipelineLoader):
 
         sid_estimates = self.estimates[self.estimates[SID_FIELD_NAME] == sid]
 
+        # Get an integer index
         requested_qtr_timeline = requested_qtr_data[SHIFTED_NORMALIZED_QTRS][
             sid
         ].reset_index()
@@ -760,38 +757,49 @@ class EarningsEstimatesLoader(PipelineLoader):
             requested_qtr_timeline[sid].notnull()
         ]
 
-        qtr_ranges = [
+        # Split the data into range by quarter and determine which quarter
+        # was being requested in each range.
+        requested_quarters_per_range = [
             np.unique(rng) for rng in np.split(
                 requested_qtr_timeline[sid],
                 np.where(np.diff(requested_qtr_timeline[sid]) != 0)[0] + 1
             )
         ]
+        # Split integer indexes up by quarter range
         qtr_ranges_idxs = np.split(
             requested_qtr_timeline.index,
             np.where(np.diff(requested_qtr_timeline[sid]) != 0)[0] + 1
         )
-        for i, qtr_range_idxs in enumerate(qtr_ranges_idxs):
+        # Try to apply each adjustment to each quarter range.
+        for i, qtr_range in enumerate(qtr_ranges_idxs):
             for adjustment, date_index, timestamp in zip(*post_adjustments):
+                # In the default case, apply through the end of the quarter
+                upper_bound = qtr_range[-1]
                 # Find the smallest KD in estimates that is on or after the
                 # date of the given adjustment. Apply the given adjustment
                 # until that KD.
-                upper_bound = qtr_range_idxs[-1]
                 end_idx = self.determine_end_idx_for_adjustment(
                     date_index,
                     requested_qtr_data.index,
                     upper_bound,
-                    qtr_ranges[i][0],
+                    requested_quarters_per_range[i][0],
                     sid_estimates
                 )
-                start_idx = qtr_range_idxs[0]
+                # In the default case, apply adjustment on the first day of the
+                # quarter.
+                start_idx = qtr_range[0]
+                # If the adjustment happens during this quarter, apply the
+                # adjustment on the day it happens.
                 if date_index > start_idx:
                     start_idx = date_index
-                if qtr_range_idxs[0] <= end_idx:
+                # We only want to apply the adjustment if we have any stale
+                # data to apply it to.
+                if qtr_range[0] <= end_idx:
                     col_to_split_adjustments[
                         column_name
                     ][start_idx].append(
                         Float64Multiply(
-                            qtr_range_idxs[0],
+                            qtr_range[0],  # Always apply from first day of qtr
                             end_idx,
                             sid_idx,
                             sid_idx,
@@ -801,7 +809,10 @@ class EarningsEstimatesLoader(PipelineLoader):
 
         return col_to_split_adjustments
 
-    def retrieve_adjustments_for_sid(self, dates, sid, split_adjusted_asof_idx):
+    def retrieve_adjustments_for_sid(self,
+                                     dates,
+                                     sid,
+                                     split_adjusted_asof_idx):
         """
         dates : pd.DatetimeIndex
             The calendar dates.
@@ -857,10 +868,10 @@ class EarningsEstimatesLoader(PipelineLoader):
                              post_adjustments):
 
         pre_adjustments_dict = self.collect_pre_split_asof_date_adjustments(
-                split_adjusted_asof_idx,
-                sid_idx,
-                pre_adjustments,
-            )
+            split_adjusted_asof_idx,
+            sid_idx,
+            pre_adjustments,
+        )
 
         post_adjustments_dict = self.collect_post_asof_split_adjustments(
             post_adjustments,
@@ -1154,7 +1165,6 @@ class PreviousEarningsEstimatesLoader(EarningsEstimatesLoader):
             sid_idx,
         )]
 
-
     def collect_split_adjustments(self,
                                   adjustments_for_sid,
                                   requested_qtr_data,
@@ -1206,7 +1216,6 @@ class PreviousEarningsEstimatesLoader(EarningsEstimatesLoader):
             post_adjustments_dict,
             adjustments_for_sid
         )
-
 
     def get_shifted_qtrs(self, zero_qtrs, num_announcements):
         return zero_qtrs - (num_announcements - 1)

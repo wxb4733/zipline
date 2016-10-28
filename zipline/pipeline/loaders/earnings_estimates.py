@@ -803,11 +803,14 @@ class EarningsEstimatesLoader(PipelineLoader):
                 col_to_split_adjustments[column_name] = defaultdict(list)
 
             # Get an integer index
-            requested_qtr_timeline = requested_qtr_data[
-                SHIFTED_NORMALIZED_QTRS
-            ][sid].reset_index()
+
+            requested_qtr_timeline = requested_qtr_data.loc[
+                :, (SHIFTED_NORMALIZED_QTRS, sid)
+            ].reset_index()
             requested_qtr_timeline = requested_qtr_timeline[
-                requested_qtr_timeline[sid].notnull()
+                requested_qtr_timeline.loc[
+                    :, (SHIFTED_NORMALIZED_QTRS, sid)
+                ].notnull()
             ]
 
             # Split the data into range by quarter and determine which quarter
@@ -815,10 +818,15 @@ class EarningsEstimatesLoader(PipelineLoader):
             # Split integer indexes up by quarter range
             qtr_ranges_idxs = np.split(
                 requested_qtr_timeline.index,
-                np.where(np.diff(requested_qtr_timeline[sid]) != 0)[0] + 1
+                np.where(np.diff(requested_qtr_timeline.loc[
+                    :, (SHIFTED_NORMALIZED_QTRS, sid)
+                ]) != 0)[0] + 1
             )
-            requested_quarters_per_range = [requested_qtr_timeline[sid][r[0]]
-                                            for r in qtr_ranges_idxs]
+            requested_quarters_per_range = [
+                requested_qtr_timeline.loc[
+                    r[0], (SHIFTED_NORMALIZED_QTRS, sid)
+                ] for r in qtr_ranges_idxs
+            ]
             # Try to apply each adjustment to each quarter range.
             for i, qtr_range in enumerate(qtr_ranges_idxs):
                 for adjustment, date_index, timestamp in zip(

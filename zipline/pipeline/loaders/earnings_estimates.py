@@ -39,18 +39,7 @@ PREVIOUS_FISCAL_QUARTER = 'previous_fiscal_quarter'
 PREVIOUS_FISCAL_YEAR = 'previous_fiscal_year'
 SHIFTED_NORMALIZED_QTRS = 'shifted_normalized_quarters'
 SIMULATION_DATES = 'dates'
-#
-# from decorator import decorator
-# from line_profiler import LineProfiler
-#
-# @decorator
-# def profile_each_line(func, *args, **kwargs):
-#     profiler = LineProfiler()
-#     profiled_func = profiler(func)
-#     try:
-#         profiled_func(*args, **kwargs)
-#     finally:
-#         profiler.print_stats()
+
 
 def normalize_quarters(years, quarters):
     return years * 4 + quarters - 1
@@ -980,7 +969,7 @@ class EarningsEstimatesLoader(PipelineLoader):
                 overwrites[column][ts].extend(pre[column][ts])
             for ts in post[column]:
                 overwrites[column][ts].extend(post[column][ts])
-    # @profile_each_line
+
     def determine_end_idx_for_adjustment(self,
                                          adjustment_ts,
                                          dates,

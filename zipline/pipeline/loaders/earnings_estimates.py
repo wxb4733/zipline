@@ -250,6 +250,7 @@ class EarningsEstimatesLoader(PipelineLoader):
                                   dates,
                                   sid,
                                   sid_idx,
+                                  sid_estimates,
                                   split_adjusted_asof_idx,
                                   pre_adjustments,
                                   post_adjustments,
@@ -448,12 +449,16 @@ class EarningsEstimatesLoader(PipelineLoader):
                  post_adjustments) = self.retrieve_adjustments_for_sid(
                     dates, sid, split_adjusted_asof_idx
                 )
+                sid_estimates = self.estimates[
+                    self.estimates[SID_FIELD_NAME] == sid
+                ]
                 self.collect_split_adjustments(
                     all_adjustments_for_sid,
                     requested_qtr_data,
                     dates,
                     sid,
                     sid_to_idx[sid],
+                    sid_estimates,
                     split_adjusted_asof_idx,
                     pre_adjustments,
                     post_adjustments,
@@ -765,6 +770,7 @@ class EarningsEstimatesLoader(PipelineLoader):
                                             requested_qtr_data,
                                             sid,
                                             sid_idx,
+                                            sid_estimates,
                                             requested_split_adjusted_columns):
         """
         Collect split adjustments that occur after the
@@ -795,9 +801,6 @@ class EarningsEstimatesLoader(PipelineLoader):
         if post_adjustments:
             for column_name in requested_split_adjusted_columns:
                 col_to_split_adjustments[column_name] = defaultdict(list)
-
-            sid_estimates = self.estimates[self.estimates[SID_FIELD_NAME] ==
-                                           sid]
 
             # Get an integer index
             requested_qtr_timeline = requested_qtr_data[
@@ -913,6 +916,7 @@ class EarningsEstimatesLoader(PipelineLoader):
                              requested_qtr_data,
                              sid,
                              sid_idx,
+                             sid_estimates,
                              split_adjusted_asof_idx,
                              pre_adjustments,
                              post_adjustments,
@@ -930,6 +934,7 @@ class EarningsEstimatesLoader(PipelineLoader):
             requested_qtr_data,
             sid,
             sid_idx,
+            sid_estimates,
             requested_split_adjusted_columns
         )
         return pre_adjustments_dict, post_adjustments_dict
@@ -1087,6 +1092,7 @@ class NextEarningsEstimatesLoader(EarningsEstimatesLoader):
                                   dates,
                                   sid,
                                   sid_idx,
+                                  sid_estimates,
                                   split_adjusted_asof_idx,
                                   pre_adjustments,
                                   post_adjustments,
@@ -1125,12 +1131,12 @@ class NextEarningsEstimatesLoader(EarningsEstimatesLoader):
             requested_qtr_data,
             sid,
             sid_idx,
+            sid_estimates,
             split_adjusted_asof_idx,
             pre_adjustments,
             post_adjustments,
             requested_split_adjusted_columns,
         )
-        sid_estimates = self.estimates[self.estimates[SID_FIELD_NAME] == sid]
         for column_name in requested_split_adjusted_columns:
             for overwrite_ts in adjustments_for_sid[column_name]:
                 # We need to cumulatively re-apply all adjustments up to the
@@ -1233,6 +1239,7 @@ class PreviousEarningsEstimatesLoader(EarningsEstimatesLoader):
                                   dates,
                                   sid,
                                   sid_idx,
+                                  sid_estimates,
                                   split_adjusted_asof_idx,
                                   pre_adjustments,
                                   post_adjustments,
@@ -1272,6 +1279,7 @@ class PreviousEarningsEstimatesLoader(EarningsEstimatesLoader):
             requested_qtr_data,
             sid,
             sid_idx,
+            sid_estimates,
             split_adjusted_asof_idx,
             pre_adjustments,
             post_adjustments,

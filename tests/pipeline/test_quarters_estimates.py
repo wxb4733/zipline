@@ -896,6 +896,7 @@ class WithEstimateWindows(WithEstimates):
             SID_FIELD_NAME: 0,
         })
 
+        # We want a case where we skip a quarter. We never find out about Q2.
         sid_10_timeline = pd.DataFrame({
             TS_FIELD_NAME: [pd.Timestamp('2015-01-09'),
                             pd.Timestamp('2015-01-12'),
@@ -910,8 +911,8 @@ class WithEstimateWindows(WithEstimates):
             SID_FIELD_NAME: 10
         })
 
-        # Extra sid to make sure we have correct overwrites when sid quarter
-        # boundaries collide.
+        # We want to make sure we have correct overwrites when sid quarter
+        # boundaries collide. This sid's quarter boundaries collide with sid 0.
         sid_20_timeline = pd.DataFrame({
             TS_FIELD_NAME: [cls.window_test_start_date,
                             pd.Timestamp('2015-01-07'),
@@ -1261,7 +1262,7 @@ class WithSplitAdjustedWindows(WithEstimateWindows):
                                pd.Timestamp('2015-01-18'),
                                # Split after Q1 release and before Q2 release
                                pd.Timestamp('2015-01-30'),
-                               # Filter out
+                               # Filter out - this is after our date index
                                pd.Timestamp('2016-01-01'))
         })
 
@@ -1278,7 +1279,7 @@ class WithSplitAdjustedWindows(WithEstimateWindows):
         sid_20_splits = pd.DataFrame({
             SID_FIELD_NAME: 20,
             'ratio': (.4, .5, .6, .7, .8, .9,),
-            'effective_date': (  # Sid 2:  we want a sid with split dates that
+            'effective_date': (  # We want a sid with split dates that
                 # collide with another sid to make sure splits
                 # are correctly applied for both sids.
                 pd.Timestamp('2015-01-07'),
@@ -1305,18 +1306,11 @@ class WithSplitAdjustedWindows(WithEstimateWindows):
                 pd.Timestamp('2015-01-18')),
         })
 
-        sid_40_splits = pd.DataFrame({
-            SID_FIELD_NAME: 40,
-            'ratio': 4,
-            'effective_date': (pd.Timestamp('2015-01-15'),)
-        })
-
         return pd.concat([
             sid_0_splits,
             sid_10_splits,
             sid_20_splits,
             sid_30_splits,
-            sid_40_splits,
         ])
 
 

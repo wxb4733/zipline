@@ -39,7 +39,18 @@ PREVIOUS_FISCAL_QUARTER = 'previous_fiscal_quarter'
 PREVIOUS_FISCAL_YEAR = 'previous_fiscal_year'
 SHIFTED_NORMALIZED_QTRS = 'shifted_normalized_quarters'
 SIMULATION_DATES = 'dates'
-
+#
+# from decorator import decorator
+# from line_profiler import LineProfiler
+#
+# @decorator
+# def profile_each_line(func, *args, **kwargs):
+#     profiler = LineProfiler()
+#     profiled_func = profiler(func)
+#     try:
+#         profiled_func(*args, **kwargs)
+#     finally:
+#         profiler.print_stats()
 
 def normalize_quarters(years, quarters):
     return years * 4 + quarters - 1
@@ -765,6 +776,7 @@ class EarningsEstimatesLoader(PipelineLoader):
                     )
         return col_to_split_adjustments
 
+
     def collect_post_asof_split_adjustments(self,
                                             post_adjustments,
                                             requested_qtr_data,
@@ -830,7 +842,7 @@ class EarningsEstimatesLoader(PipelineLoader):
                     # date of the given adjustment. Apply the given adjustment
                     # until that KD.
                     end_idx = self.determine_end_idx_for_adjustment(
-                        date_index,
+                        timestamp,
                         requested_qtr_data.index,
                         upper_bound,
                         requested_quarters_per_range[i],
@@ -968,9 +980,9 @@ class EarningsEstimatesLoader(PipelineLoader):
                 overwrites[column][ts].extend(pre[column][ts])
             for ts in post[column]:
                 overwrites[column][ts].extend(post[column][ts])
-
+    # @profile_each_line
     def determine_end_idx_for_adjustment(self,
-                                         date_index,
+                                         adjustment_ts,
                                          dates,
                                          upper_bound,
                                          requested_quarter,
@@ -981,9 +993,8 @@ class EarningsEstimatesLoader(PipelineLoader):
 
         Parameters
         ----------
-        date_index : int
-            The date index into the calendar dates at which the adjustment
-            occurs.
+        adjustment_ts : pd.Timestamp
+            The timestamp at which the adjustment occurs.
         dates : pd.DatetimeIndex
             The calendar dates over which the Pipeline is being computed.
         upper_bound : int
@@ -1008,11 +1019,9 @@ class EarningsEstimatesLoader(PipelineLoader):
         # Find the next newest kd that happens on or after
         # the date of this adjustment
         newest_kd_for_qtr = sid_estimates[
-            (sid_estimates[NORMALIZED_QUARTERS] ==
-             requested_quarter) &
-            (sid_estimates[TS_FIELD_NAME] >=
-             dates[date_index])
-            ][TS_FIELD_NAME].min()
+            (sid_estimates[NORMALIZED_QUARTERS] == requested_quarter) &
+            (sid_estimates[TS_FIELD_NAME] >= adjustment_ts)
+        ][TS_FIELD_NAME].min()
         if pd.notnull(newest_kd_for_qtr):
             newest_kd_idx = dates.searchsorted(
                 newest_kd_for_qtr
@@ -1179,14 +1188,14 @@ class NextEarningsEstimatesLoader(EarningsEstimatesLoader):
                         SHIFTED_NORMALIZED_QTRS, sid
                     ].iloc[overwrite_ts]
 
-                    for adjustment_value, date_index, _ in zip(
+                    for adjustment_value, date_index, timestamp in zip(
                             *post_adjustments
                     ):
                         if split_adjusted_asof_idx < date_index < overwrite_ts:
                             # Assume the entire overwrite contains stale data
                             upper_bound = overwrite_ts - 1
                             end_idx = self.determine_end_idx_for_adjustment(
-                                date_index,
+                                timestamp,
                                 dates,
                                 upper_bound,
                                 requested_quarter,

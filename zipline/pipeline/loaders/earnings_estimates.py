@@ -280,6 +280,9 @@ class EarningsEstimatesLoader(PipelineLoader):
         stacked_last_per_qtr : pd.DataFrame
             The latest estimate known with the dates, normalized quarter, and
             sid as the index.
+        num_announcements : int
+            The number of annoucements out the user requested relative to
+            each date in the calendar dates.
         dates : pd.DatetimeIndex
             The calendar dates for which estimates data is requested.
 
@@ -790,6 +793,8 @@ class EarningsEstimatesLoader(PipelineLoader):
             The sid for which adjustments need to be collected.
         sid_idx : int
             The index of `sid` in the adjusted array.
+        sid_estimates : pd.DataFrame
+            The raw estimates data for this sid.
         requested_split_adjusted_columns : list of str
             The requested split adjusted columns.
         Returns
@@ -1113,6 +1118,8 @@ class NextEarningsEstimatesLoader(EarningsEstimatesLoader):
             The sid for which adjustments need to be collected.
         sid_idx : int
             The index of `sid` in the adjusted array.
+        sid_estimates : pd.DataFrame
+            The raw estimates data for the given sid.
         split_adjusted_asof_idx : int
             The index in `dates` as-of which the data is split adjusted.
         pre_adjustments : tuple(list(float), list(int), pd.DatetimeIndex)
@@ -1261,6 +1268,8 @@ class PreviousEarningsEstimatesLoader(EarningsEstimatesLoader):
             The sid for which adjustments need to be collected.
         sid_idx : int
             The index of `sid` in the adjusted array.
+        sid_estimates : pd.DataFrame
+            The raw estimates data for the given sid.
         split_adjusted_asof_idx : int
             The index in `dates` as-of which the data is split adjusted.
         pre_adjustments : tuple(list(float), list(int), pd.DatetimeIndex)

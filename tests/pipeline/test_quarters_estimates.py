@@ -1638,18 +1638,16 @@ class WithMultipleEstimateColumns(WithEstimates):
     @classmethod
     def make_events(cls):
         return pd.DataFrame({
+            # We only want a stale KD here so that adjustments
+            # will be applied.
             TS_FIELD_NAME: [cls.window_test_start_date,
-                            pd.Timestamp('2015-01-09'),
-                            cls.window_test_start_date,
-                            pd.Timestamp('2015-01-12')],
+                            cls.window_test_start_date],
             EVENT_DATE_FIELD_NAME:
                 [pd.Timestamp('2015-01-09'),
-                 pd.Timestamp('2015-01-09'),
-                 pd.Timestamp('2015-01-12'),
                  pd.Timestamp('2015-01-12')],
-            'estimate1': [1100., 1101.] + [1200., 1201.],
-            'estimate2': [2100., 2101.] + [2200., 2201.],
-            FISCAL_QUARTER_FIELD_NAME: [1] * 2 + [2] * 2,
+            'estimate1': [1100., 1200.],
+            'estimate2': [2100., 2200.],
+            FISCAL_QUARTER_FIELD_NAME: [1, 2],
             FISCAL_YEAR_FIELD_NAME: 2015,
             SID_FIELD_NAME: 0,
         })
@@ -1712,8 +1710,8 @@ class PreviousWithMultipleEstimateColumns(WithMultipleEstimateColumns,
 
     @classmethod
     def make_expected_timelines(cls):
-        return {'estimate1': np.array([[np.NaN]] * 2 + [[1201.]]),
-                'estimate2': np.array([[np.NaN]] * 2 + [[2201.]])}
+        return {'estimate1': np.array([[np.NaN]] * 2 + [[3600.]]),
+                'estimate2': np.array([[np.NaN]] * 2 + [[6600.]])}
 
 
 class NextWithMultipleEstimateColumns(WithMultipleEstimateColumns,
@@ -1730,8 +1728,8 @@ class NextWithMultipleEstimateColumns(WithMultipleEstimateColumns,
 
     @classmethod
     def make_expected_timelines(cls):
-        return {'estimate1': np.array([[3600.], [3600.], [1201.]]),
-                'estimate2': np.array([[6600.], [6600.], [2201.]])}
+        return {'estimate1': np.array([[3600.]] * 3),
+                'estimate2': np.array([[6600.]] * 3)}
 
 
 class QuarterShiftTestCase(ZiplineTestCase):

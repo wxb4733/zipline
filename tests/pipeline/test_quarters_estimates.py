@@ -68,6 +68,7 @@ def MultipleColumnsQuartersEstimates(announcements_out):
         name = Estimates
     return QtrEstimates
 
+
 def QuartersEstimatesNoNumQuartersAttr(num_qtr):
     class QtrEstimates(Estimates):
         name = Estimates
@@ -851,6 +852,7 @@ class NextVaryingNumEstimates(
     @classmethod
     def make_loader(cls, events, columns):
         return NextEarningsEstimatesLoader(events, columns)
+
 
 class WithEstimateWindows(WithEstimates):
     """
@@ -1663,7 +1665,6 @@ class WithMultipleEstimateColumns(WithEstimates):
     @classmethod
     def make_expected_timelines(cls):
         return {}
-
 
     @classmethod
     def init_class_fixtures(cls):

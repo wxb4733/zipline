@@ -768,7 +768,6 @@ class EarningsEstimatesLoader(PipelineLoader):
                     )
         return col_to_split_adjustments
 
-
     def collect_post_asof_split_adjustments(self,
                                             post_adjustments,
                                             requested_qtr_data,

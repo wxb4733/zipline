@@ -1,10 +1,9 @@
 from abc import abstractmethod, abstractproperty
-from collections import defaultdict
 
 import numpy as np
 import pandas as pd
 from six import viewvalues
-from toolz import groupby
+from toolz import groupby, merge
 
 from zipline.lib.adjusted_array import AdjustedArray
 from zipline.lib.adjustment import (
@@ -132,6 +131,16 @@ def validate_split_adjustments_args(name_map,
             "Provided only %s, must also provide %s to split-adjust estimates."
             % (",".join(provided), ",".join(not_provided))
         )
+
+
+def extend_or_add_new_adjustments(adjustments_dict,
+                                  adjustments,
+                                  column_name,
+                                  ts):
+    try:
+        adjustments_dict[column_name][ts].extend(adjustments)
+    except KeyError:
+        adjustments_dict[column_name][ts] = adjustments
 
 
 class EarningsEstimatesLoader(PipelineLoader):
@@ -395,9 +404,7 @@ class EarningsEstimatesLoader(PipelineLoader):
             level=[SID_FIELD_NAME, NORMALIZED_QUARTERS]
         ).nth(-1)
 
-        col_to_all_adjustments = defaultdict(dict)
-        for col in columns:
-            col_to_all_adjustments[self.name_map[col.name]] = defaultdict(list)
+        col_to_all_adjustments = {}
 
         requested_split_adjusted_columns_for_group = None
         if self._split_adjustments:
@@ -409,11 +416,7 @@ class EarningsEstimatesLoader(PipelineLoader):
 
         def collect_adjustments(group):
             # Collect all adjustments for a given sid.
-            all_adjustments_for_sid = defaultdict(dict)
-            for column in columns:
-                all_adjustments_for_sid[
-                    self.name_map[column.name]
-                ] = defaultdict(list)
+            all_adjustments_for_sid = {}
             next_qtr_start_indices = dates.searchsorted(
                 group[EVENT_DATE_FIELD_NAME].values,
                 side=self.searchsorted_side,
@@ -470,11 +473,14 @@ class EarningsEstimatesLoader(PipelineLoader):
             # Merge adjustments for this sid into the dictionary containing
             # adjustments for all sids.
             for col_name in all_adjustments_for_sid:
+                if col_name not in col_to_all_adjustments:
+                    col_to_all_adjustments[col_name] = {}
                 for ts in all_adjustments_for_sid[col_name]:
-                    col_to_all_adjustments[col_name][ts].extend(
-                        all_adjustments_for_sid[col_name][ts]
-                    )
-
+                    adjs = all_adjustments_for_sid[col_name][ts]
+                    extend_or_add_new_adjustments(col_to_all_adjustments,
+                                                  adjs,
+                                                  col_name,
+                                                  ts)
         quarter_shifts.groupby(level=SID_FIELD_NAME).apply(collect_adjustments)
         return col_to_all_adjustments
 
@@ -519,12 +525,13 @@ class EarningsEstimatesLoader(PipelineLoader):
         """
         for col in columns:
             column_name = self.name_map[col.name]
+            if column_name not in col_to_overwrites:
+                col_to_overwrites[column_name] = {}
             # If there are estimates for the requested quarter,
             # overwrite all values going up to the starting index of
             # that quarter with estimates for that quarter.
             if requested_quarter in quarters_with_estimates_for_sid:
-                col_to_overwrites[column_name][next_qtr_start_idx].extend(
-                    self.create_overwrite_for_estimate(
+                adjs = self.create_overwrite_for_estimate(
                         col,
                         column_name,
                         last_per_qtr,
@@ -532,19 +539,24 @@ class EarningsEstimatesLoader(PipelineLoader):
                         requested_quarter,
                         sid,
                         sid_idx,
-                    ))
+                    )
+                extend_or_add_new_adjustments(col_to_overwrites,
+                                              adjs,
+                                              column_name,
+                                              next_qtr_start_idx)
             # There are no estimates for the quarter. Overwrite all
             # values going up to the starting index of that quarter
             # with the missing value for this column.
             else:
-                col_to_overwrites[column_name][next_qtr_start_idx].extend([
-                    self.overwrite_with_null(
+                adjs = [self.overwrite_with_null(
                         col,
                         last_per_qtr.index,
                         next_qtr_start_idx,
-                        sid_idx
-                    ),
-                ])
+                        sid_idx)]
+                extend_or_add_new_adjustments(col_to_overwrites,
+                                              adjs,
+                                              column_name,
+                                              next_qtr_start_idx)
 
     def overwrite_with_null(self,
                             column,
@@ -735,8 +747,8 @@ class EarningsEstimatesLoader(PipelineLoader):
             The adjustments for this sid that occurred on or before the
             split-asof-date.
         """
-        col_to_split_adjustments = defaultdict(dict)
-        if pre_adjustments:
+        col_to_split_adjustments = {}
+        if len(pre_adjustments[0]):
             adjustment_values, date_indexes = pre_adjustments
             # We need to undo all adjustments that happen before the
             # split_asof_date here by reversing the split ratio.
@@ -748,24 +760,23 @@ class EarningsEstimatesLoader(PipelineLoader):
                 1/future_adjustment
             ) for future_adjustment in adjustment_values]
             for column_name in requested_split_adjusted_columns:
-                col_to_split_adjustments[column_name] = defaultdict(list)
-                col_to_split_adjustments[column_name][0].extend(
-                    adjustments_to_undo
-                )
+                col_to_split_adjustments[column_name] = {}
+                col_to_split_adjustments[column_name][0] = adjustments_to_undo
 
                 for adjustment, date_index in zip(adjustment_values,
                                                   date_indexes):
-                    col_to_split_adjustments[
-                        column_name
-                    ][date_index].append(
-                        Float64Multiply(
-                            0,
-                            split_adjusted_asof_date_idx,
-                            sid_idx,
-                            sid_idx,
-                            adjustment
-                        )
-                    )
+                    adj = Float64Multiply(
+                                0,
+                                split_adjusted_asof_date_idx,
+                                sid_idx,
+                                sid_idx,
+                                adjustment
+                            )
+                    extend_or_add_new_adjustments(col_to_split_adjustments,
+                                                  [adj],
+                                                  column_name,
+                                                  date_index)
+
         return col_to_split_adjustments
 
     def collect_post_asof_split_adjustments(self,
@@ -802,11 +813,8 @@ class EarningsEstimatesLoader(PipelineLoader):
             The adjustments for this sid that occurred after the
             split-asof-date.
         """
-        col_to_split_adjustments = defaultdict(dict)
+        col_to_split_adjustments = {}
         if post_adjustments:
-            for column_name in requested_split_adjusted_columns:
-                col_to_split_adjustments[column_name] = defaultdict(list)
-
             # Get an integer index
             requested_qtr_timeline = requested_qtr_data[
                 SHIFTED_NORMALIZED_QTRS
@@ -852,10 +860,9 @@ class EarningsEstimatesLoader(PipelineLoader):
                     # data to apply it to.
                     if qtr_range[0] <= end_idx:
                         for column_name in requested_split_adjusted_columns:
-                            col_to_split_adjustments[
-                                column_name
-                            ][start_idx].append(
-                                Float64Multiply(
+                            if column_name not in col_to_split_adjustments:
+                                col_to_split_adjustments[column_name] = {}
+                            adj = Float64Multiply(
                                     # Always apply from first day of qtr
                                     qtr_range[0],
                                     end_idx,
@@ -863,6 +870,11 @@ class EarningsEstimatesLoader(PipelineLoader):
                                     sid_idx,
                                     adjustment
                                 )
+                            extend_or_add_new_adjustments(
+                                col_to_split_adjustments,
+                                [adj],
+                                column_name,
+                                start_idx
                             )
 
         return col_to_split_adjustments
@@ -966,13 +978,27 @@ class EarningsEstimatesLoader(PipelineLoader):
         requested_split_adjusted_columns : list of str
             List of names of split adjusted columns that are being requested.
         """
-        for column in requested_split_adjusted_columns:
+        for column_name in requested_split_adjusted_columns:
             # We can do a merge here because the timestamps in 'pre' and
             # 'post' are guaranteed to not overlap.
-            for ts in pre[column]:
-                overwrites[column][ts].extend(pre[column][ts])
-            for ts in post[column]:
-                overwrites[column][ts].extend(post[column][ts])
+            if pre:
+                # Either empty or contains all columns.
+                for ts in pre[column_name]:
+                    extend_or_add_new_adjustments(
+                        overwrites,
+                        pre[column_name][ts],
+                        column_name,
+                        ts
+                    )
+            if post:
+                # Either empty or contains all columns.
+                for ts in post[column_name]:
+                    extend_or_add_new_adjustments(
+                        overwrites,
+                        post[column_name][ts],
+                        column_name,
+                        ts
+                    )
 
     def determine_end_idx_for_adjustment(self,
                                          adjustment_ts,

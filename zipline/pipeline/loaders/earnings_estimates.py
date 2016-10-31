@@ -3,7 +3,7 @@ from abc import abstractmethod, abstractproperty
 import numpy as np
 import pandas as pd
 from six import viewvalues
-from toolz import groupby, merge
+from toolz import groupby
 
 from zipline.lib.adjusted_array import AdjustedArray
 from zipline.lib.adjustment import (
@@ -532,14 +532,14 @@ class EarningsEstimatesLoader(PipelineLoader):
             # that quarter with estimates for that quarter.
             if requested_quarter in quarters_with_estimates_for_sid:
                 adjs = self.create_overwrite_for_estimate(
-                        col,
-                        column_name,
-                        last_per_qtr,
-                        next_qtr_start_idx,
-                        requested_quarter,
-                        sid,
-                        sid_idx,
-                    )
+                    col,
+                    column_name,
+                    last_per_qtr,
+                    next_qtr_start_idx,
+                    requested_quarter,
+                    sid,
+                    sid_idx,
+                )
                 extend_or_add_new_adjustments(col_to_overwrites,
                                               adjs,
                                               column_name,
@@ -766,12 +766,12 @@ class EarningsEstimatesLoader(PipelineLoader):
                 for adjustment, date_index in zip(adjustment_values,
                                                   date_indexes):
                     adj = Float64Multiply(
-                                0,
-                                split_adjusted_asof_date_idx,
-                                sid_idx,
-                                sid_idx,
-                                adjustment
-                            )
+                        0,
+                        split_adjusted_asof_date_idx,
+                        sid_idx,
+                        sid_idx,
+                        adjustment
+                    )
                     extend_or_add_new_adjustments(col_to_split_adjustments,
                                                   [adj],
                                                   column_name,
@@ -863,13 +863,13 @@ class EarningsEstimatesLoader(PipelineLoader):
                             if column_name not in col_to_split_adjustments:
                                 col_to_split_adjustments[column_name] = {}
                             adj = Float64Multiply(
-                                    # Always apply from first day of qtr
-                                    qtr_range[0],
-                                    end_idx,
-                                    sid_idx,
-                                    sid_idx,
-                                    adjustment
-                                )
+                                # Always apply from first day of qtr
+                                qtr_range[0],
+                                end_idx,
+                                sid_idx,
+                                sid_idx,
+                                adjustment
+                            )
                             extend_or_add_new_adjustments(
                                 col_to_split_adjustments,
                                 [adj],

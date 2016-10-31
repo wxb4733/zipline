@@ -47,12 +47,26 @@ class Estimates(DataSet):
     estimate = Column(dtype=float64_dtype)
 
 
+class MultipleColumnsEstimates(DataSet):
+    event_date = Column(dtype=datetime64ns_dtype)
+    fiscal_quarter = Column(dtype=float64_dtype)
+    fiscal_year = Column(dtype=float64_dtype)
+    estimate1 = Column(dtype=float64_dtype)
+    estimate2 = Column(dtype=float64_dtype)
+
+
 def QuartersEstimates(announcements_out):
     class QtrEstimates(Estimates):
         num_announcements = announcements_out
         name = Estimates
     return QtrEstimates
 
+
+def MultipleColumnsQuartersEstimates(announcements_out):
+    class QtrEstimates(MultipleColumnsEstimates):
+        num_announcements = announcements_out
+        name = Estimates
+    return QtrEstimates
 
 def QuartersEstimatesNoNumQuartersAttr(num_qtr):
     class QtrEstimates(Estimates):
@@ -95,6 +109,15 @@ class WithEstimates(WithTradingSessions, WithAdjustmentReader):
         return cls.events[SID_FIELD_NAME].unique()
 
     @classmethod
+    def make_columns(cls):
+        return {
+            Estimates.event_date: 'event_date',
+            Estimates.fiscal_quarter: 'fiscal_quarter',
+            Estimates.fiscal_year: 'fiscal_year',
+            Estimates.estimate: 'estimate'
+        }
+
+    @classmethod
     def init_class_fixtures(cls):
         cls.events = cls.make_events()
         cls.ASSET_FINDER_EQUITY_SIDS = cls.get_sids()
@@ -104,12 +127,7 @@ class WithEstimates(WithTradingSessions, WithAdjustmentReader):
         # We need to instantiate certain constants needed by supers of
         # `WithEstimates` before we call their `init_class_fixtures`.
         super(WithEstimates, cls).init_class_fixtures()
-        cls.columns = {
-            Estimates.event_date: 'event_date',
-            Estimates.fiscal_quarter: 'fiscal_quarter',
-            Estimates.fiscal_year: 'fiscal_year',
-            Estimates.estimate: 'estimate'
-        }
+        cls.columns = cls.make_columns()
         # Some tests require `WithAdjustmentReader` to be set up by the time we
         # make the loader.
         cls.loader = cls.make_loader(cls.events, {column.name: val for
@@ -834,7 +852,6 @@ class NextVaryingNumEstimates(
     def make_loader(cls, events, columns):
         return NextEarningsEstimatesLoader(events, columns)
 
-
 class WithEstimateWindows(WithEstimates):
     """
     ZiplineTestCase mixin providing fixures and a test to test running a
@@ -1344,7 +1361,6 @@ class PreviousWithSplitAdjustedWindows(WithSplitAdjustedWindows,
                     (0, np.NaN, cls.window_test_start_date),
                     (10, np.NaN, cls.window_test_start_date),
                     (20, np.NaN, cls.window_test_start_date),
-                    # Undo all adjustments that haven't happened yet.
                     (30, 131, pd.Timestamp('2015-01-09'))
                 ], end_date)
                 for end_date in pd.date_range('2015-01-13', '2015-01-14')
@@ -1354,7 +1370,6 @@ class PreviousWithSplitAdjustedWindows(WithSplitAdjustedWindows,
                     (0, np.NaN, cls.window_test_start_date),
                     (10, np.NaN, cls.window_test_start_date),
                     (20, np.NaN, cls.window_test_start_date),
-                    # Undo all adjustments that haven't happened yet.
                     (30, 131*11, pd.Timestamp('2015-01-09'))
                 ], end_date)
                 for end_date in pd.date_range('2015-01-15', '2015-01-16')
@@ -1601,6 +1616,122 @@ class NextWithSplitAdjustedWindows(WithSplitAdjustedWindows, ZiplineTestCase):
             1: oneq_next,
             2: twoq_next
         }
+
+
+class WithMultipleEstimateColumns(WithEstimates):
+    END_DATE = pd.Timestamp('2015-02-10')
+    window_test_start_date = pd.Timestamp('2015-01-05')
+    dataset_class = staticmethod(MultipleColumnsQuartersEstimates)
+    test_start_date = pd.Timestamp('2015-01-12', tz='utc')
+    test_end_date = pd.Timestamp('2015-01-12', tz='utc')
+
+    @classmethod
+    def make_columns(cls):
+        return {
+            MultipleColumnsEstimates.event_date: 'event_date',
+            MultipleColumnsEstimates.fiscal_quarter: 'fiscal_quarter',
+            MultipleColumnsEstimates.fiscal_year: 'fiscal_year',
+            MultipleColumnsEstimates.estimate1: 'estimate1',
+            MultipleColumnsEstimates.estimate2: 'estimate2'
+        }
+
+    @classmethod
+    def make_events(cls):
+        return pd.DataFrame({
+            TS_FIELD_NAME: [cls.window_test_start_date,
+                            pd.Timestamp('2015-01-09'),
+                            cls.window_test_start_date,
+                            pd.Timestamp('2015-01-12')],
+            EVENT_DATE_FIELD_NAME:
+                [pd.Timestamp('2015-01-09'),
+                 pd.Timestamp('2015-01-09'),
+                 pd.Timestamp('2015-01-12'),
+                 pd.Timestamp('2015-01-12')],
+            'estimate1': [1100., 1101.] + [1200., 1201.],
+            'estimate2': [2100., 2101.] + [2200., 2201.],
+            FISCAL_QUARTER_FIELD_NAME: [1] * 2 + [2] * 2,
+            FISCAL_YEAR_FIELD_NAME: 2015,
+            SID_FIELD_NAME: 0,
+        })
+
+    @classmethod
+    def make_splits_data(cls):
+        return pd.DataFrame({
+            SID_FIELD_NAME: 0,
+            'ratio': 3.,
+            'effective_date': pd.Timestamp('2015-01-09'),
+        }, index=[0])
+
+    @classmethod
+    def make_expected_timelines(cls):
+        return {}
+
+
+    @classmethod
+    def init_class_fixtures(cls):
+        super(WithMultipleEstimateColumns, cls).init_class_fixtures()
+        cls.timelines = cls.make_expected_timelines()
+
+    def test_estimate_windows_at_quarter_boundaries(self):
+        dataset = MultipleColumnsQuartersEstimates(1)
+        timelines = self.timelines
+        window_len = 3
+
+        class SomeFactor(CustomFactor):
+            inputs = [dataset.estimate1, dataset.estimate2]
+            window_length = window_len
+
+            def compute(self, today, assets, out, estimate1, estimate2):
+                assert_almost_equal(estimate1, timelines['estimate1'])
+                assert_almost_equal(estimate2, timelines['estimate2'])
+
+        engine = SimplePipelineEngine(
+            lambda x: self.loader,
+            self.trading_days,
+            self.asset_finder,
+        )
+        engine.run_pipeline(
+            Pipeline({'est': SomeFactor()}),
+            start_date=self.test_start_date,
+            # last event date we have
+            end_date=self.test_end_date,
+        )
+
+
+class PreviousWithMultipleEstimateColumns(WithMultipleEstimateColumns,
+                                          ZiplineTestCase):
+    @classmethod
+    def make_loader(cls, events, columns):
+        return PreviousEarningsEstimatesLoader(
+            events,
+            columns,
+            split_adjustments_loader=cls.adjustment_reader,
+            split_adjusted_column_names=['estimate1', 'estimate2'],
+            split_adjusted_asof=pd.Timestamp('2015-01-05'),
+        )
+
+    @classmethod
+    def make_expected_timelines(cls):
+        return {'estimate1': np.array([[np.NaN]] * 2 + [[1201.]]),
+                'estimate2': np.array([[np.NaN]] * 2 + [[2201.]])}
+
+
+class NextWithMultipleEstimateColumns(WithMultipleEstimateColumns,
+                                      ZiplineTestCase):
+    @classmethod
+    def make_loader(cls, events, columns):
+        return NextEarningsEstimatesLoader(
+            events,
+            columns,
+            split_adjustments_loader=cls.adjustment_reader,
+            split_adjusted_column_names=['estimate1', 'estimate2'],
+            split_adjusted_asof=pd.Timestamp('2015-01-05'),
+        )
+
+    @classmethod
+    def make_expected_timelines(cls):
+        return {'estimate1': np.array([[3600.], [3600.], [1201.]]),
+                'estimate2': np.array([[6600.], [6600.], [2201.]])}
 
 
 class QuarterShiftTestCase(ZiplineTestCase):

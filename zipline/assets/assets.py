@@ -1227,6 +1227,19 @@ class NotAssetConvertible(ValueError):
     pass
 
 
+class PricingDataAssociable(with_metaclass(ABCMeta)):
+    """
+    ABC for types that can be associated with pricing data.
+
+    Includes Asset, Future, ContinuousFuture
+    """
+    pass
+
+PricingDataAssociable.register(Asset)
+PricingDataAssociable.register(Future)
+PricingDataAssociable.register(ContinuousFuture)
+
+
 def was_active(reference_date_value, asset):
     """
     Whether or not `asset` was active at the time corresponding to

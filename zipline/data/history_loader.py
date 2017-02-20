@@ -307,7 +307,8 @@ class HistoryLoader(with_metaclass(ABCMeta)):
     def __init__(self, trading_calendar, reader, equity_adjustment_reader,
                  asset_finder,
                  roll_finders=None,
-                 sid_cache_size=1000):
+                 sid_cache_size=1000,
+                 prefetch_length=0):
         self.trading_calendar = trading_calendar
         self._asset_finder = asset_finder
         self._reader = reader
@@ -327,13 +328,10 @@ class HistoryLoader(with_metaclass(ABCMeta)):
             field: ExpiringCache(LRU(sid_cache_size))
             for field in self.FIELDS
         }
+        self._prefetch_length = prefetch_length
 
     @abstractproperty
     def _frequency(self):
-        pass
-
-    @abstractproperty
-    def _prefetch_length(self):
         pass
 
     @abstractproperty
@@ -381,12 +379,26 @@ class HistoryLoader(with_metaclass(ABCMeta)):
 
         assets = self._asset_finder.retrieve_all(assets)
 
+        try:
+            end_ix = self._calendar.get_loc(end)
+        except KeyError:
+            raise KeyError("{0} not in calendar [{1}...{2}]".format(
+                end, self._calendar[0], self._calendar[-1]))
+
         for asset in assets:
             try:
-                asset_windows[asset] = self._window_blocks[field].get(
+                window = self._window_blocks[field].get(
                     (asset, size, is_perspective_after), end)
             except KeyError:
                 needed_assets.append(asset)
+            else:
+                if end_ix < window.most_recent_ix:
+                    # Window needs reset. Requested end index occurs before the
+                    # end index from the previous history call for this window.
+                    # Grab new window instead of rewinding adjustments.
+                    needed_assets.append(asset)
+                else:
+                    asset_windows[asset] = window
 
         if needed_assets:
             start = dts[0]
@@ -397,15 +409,15 @@ class HistoryLoader(with_metaclass(ABCMeta)):
             except KeyError:
                 raise KeyError("{0} not in calendar [{1}...{2}]".format(
                     start, self._calendar[0], self._calendar[-1]))
-            try:
-                end_ix = self._calendar.get_loc(end)
-            except KeyError:
-                raise KeyError("{0} not in calendar [{1}...{2}]".format(
-                    end, self._calendar[0], self._calendar[-1]))
             cal = self._calendar
             prefetch_end_ix = min(end_ix + self._prefetch_length, len(cal) - 1)
             prefetch_end = cal[prefetch_end_ix]
             prefetch_dts = cal[start_ix:prefetch_end_ix + 1]
+            if is_perspective_after:
+                adj_end_ix = min(prefetch_end_ix + 1, len(cal) - 1)
+                adj_dts = cal[start_ix:adj_end_ix + 1]
+            else:
+                adj_dts = prefetch_dts
             prefetch_len = len(prefetch_dts)
             array = self._array(prefetch_dts, needed_assets, field)
 
@@ -426,7 +438,7 @@ class HistoryLoader(with_metaclass(ABCMeta)):
                     adj_reader = None
                 if adj_reader is not None:
                     adjs = adj_reader.load_adjustments(
-                        [field], prefetch_dts, [asset])[0]
+                        [field], adj_dts, [asset])[0]
                 else:
                     adjs = {}
                 window = window_type(
@@ -540,10 +552,6 @@ class DailyHistoryLoader(HistoryLoader):
         return 'daily'
 
     @property
-    def _prefetch_length(self):
-        return 40
-
-    @property
     def _calendar(self):
         return self._reader.sessions
 
@@ -561,10 +569,6 @@ class MinuteHistoryLoader(HistoryLoader):
     @property
     def _frequency(self):
         return 'minute'
-
-    @property
-    def _prefetch_length(self):
-        return 1560
 
     @lazyval
     def _calendar(self):
